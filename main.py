@@ -28,13 +28,6 @@ logging.basicConfig(
     ]
 )
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-for lib_logger_name in logging.root.manager.loggerDict:
-    if lib_logger_name != __name__:
-        logging.getLogger(lib_logger_name).setLevel(logging.ERROR)
-
 def get_config():
     config = {}
     try:
