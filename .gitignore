@@ -1,0 +1,8 @@
+.venv
+.vscode
+venv   
+logs.log
+/proxies.txt
+/config.txt
+/groups.txt
+/accounts
