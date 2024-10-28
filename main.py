@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import asyncio
 import logging
@@ -7,6 +8,7 @@ from time import sleep
 from datetime import datetime
 from telethon import TelegramClient, events
 from telethon.errors import UserNotParticipantError, FloodWaitError
+from telethon.errors.rpcerrorlist import UserBannedInChannelError
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.channels import GetFullChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
@@ -47,8 +49,7 @@ def get_config():
         logging.error("Файл config.txt не найден")
         return None
 
-
-def read_groups():
+def read_channels():
     try:
         with open(GROUPS_FILE, 'r', encoding='utf-8') as f:
             return [line.strip().replace("https://", "") for line in f.readlines()]
@@ -101,22 +102,48 @@ async def check_if_authorized(client, account) -> bool:
         return False
     return True
 
-async def generate_comment(post_text, prompt_tone):
-    # prompt = f"{prompt_tone}: {post_text}"
+async def generate_prompt(post_text, prompt_tone):
+    if not prompt_tone:
+        prompt = f'''
+        На основе следующего текста,
+        напиши осознанный и позитивный комментарий.
+        Сделай его вежливым и поддерживающим,
+        используй эмодзи, чтобы передать эмоции
+        и показать заинтересованность.
+        Вырази благодарность за предоставленную информацию
+        и задай вопрос, чтобы продолжить обсуждение.
+        Учитывай, что это должен быть дружелюбный
+        и конструктивный ответ, который поддерживает
+        тему поста и мотивирует автора.
+        Ответ должен быть в пару предложений и простой в чтении.
+        Важное примечание: Определи язык оригинального поста и ответь на этом же языке.
+        Если пост на русском, ответь на русском;
+        если на английском — ответь на английском и так далее.
+        Сделай так, чтобы ответ выглядел естественным и уместным в контексте разговора.
+        
+        Текст поста: {post_text}'''
+        return prompt
+    
     prompt = f'''
-    На основе следующего текста,
-    напиши осознанный и позитивный комментарий.
-    Сделай его вежливым и поддерживающим,
-    используй эмодзи, чтобы передать эмоции
-    и показать заинтересованность.
-    Вырази благодарность за предоставленную информацию
-    и задай вопрос, чтобы продолжить обсуждение.
-    Учитывай, что это должен быть дружелюбный
-    и конструктивный ответ, который поддерживает
-    тему поста и мотивирует автора.
-    Ответ должен быть в пару предложений и простой в чтении.
+    Ты — человек, пол выбери сам, специализирующийся на создании осмысленных и контекстуально подходящих ответов на комментарии в Telegram-чатах.
+    Твоя задача — ответить на следующий пост, используя указанный тон.
+    Прими во внимание тональность, контекст и детали оригинального поста
+    и добавь тонкий намёк на заданный подтекст в свой ответ.
 
-    Текст поста: {post_text}'''
+    Оригинальный пост: "{post_text}"
+
+    Тон ответа: {prompt_tone}
+    Важное примечание: Определи язык оригинального поста и ответь на этом же языке.
+    Если пост на русском, ответь на русском; если на английском — ответь на английском и так далее.
+    Сделай так, чтобы ответ выглядел естественным и уместным в контексте разговора.
+    Напиши вдумчивый и короткий ответ, делая акцент на тон ответа.
+    Вернуть ты должен только текст ответа
+    '''
+    return prompt
+
+async def generate_comment(post_text, prompt_tone):
+
+    prompt = await generate_prompt(post_text, prompt_tone)
 
     try:
         response = client.chat.completions.create(
@@ -160,42 +187,47 @@ async def monitor_channel(client, channel, prompt_tone, comment_limit, sleep_dur
             logging.info(f"Комментарий отправлен в группу {linked_group.title}")
         except FloodWaitError as e:
             logging.warning(f"Флуд-таймаут: {e}")
-        except Exception as e:
-            logging.error(f"Ошибка отправки комментария в группу {linked_group.title}: {e}")
+        except KeyboardInterrupt:
+            logging.info("Завершение работы скрипта")
+            sys.exit(0)
+        except UserBannedInChannelError:
+            logging.info(f"Нельзя отправить сообщение, вы забанены в этом чате: {channel}")
+        # except Exception as e:
+            # logging.error(f"Ошибка отправки комментария в группу {linked_group.title}: {e}")
 
         if comment_limit <= 0:
             logging.info(f"Аккаунт переходит в режим сна на {sleep_duration} секунд")
             await asyncio.sleep(sleep_duration)
 
 
-async def join_channels(client, groups):
-    for group in groups:
-        logging.info(f"Проверяем подписку на канал: {group}")
+async def join_channels(client, channels, join_channel_delay):
+    for channel in channels:
+        logging.info(f"Проверяем подписку на канал: {channel}")
         try:
-            entity = await client.get_entity(group)
+            entity = await client.get_entity(channel)
 
             if await is_participant(client, entity):
-                logging.info(f"Уже подписан на канал: {group}")
-                continue
-
-            if entity.id == -1001583001812:
-                logging.warning("Нельзя комментировать в этом чате")
+                logging.info(f"Уже подписан на канал: {channel}")
                 continue
 
         except Exception as e:
-            logging.error(f"Ошибка получения канала {group}: {e}")
+            logging.error(f"Ошибка получения канала {channel}: {e}")
             try:
-                await client(ImportChatInviteRequest(group[5:]))
+                logging.info(f"Зарежка {join_channel_delay} сек перед подпиской на канал")
+                await asyncio.sleep(join_channel_delay)
+                await client(ImportChatInviteRequest(channel[5:]))
             except Exception as invite_err:
                 logging.error(f"Ошибка запроса на подписку: {invite_err}")
             else:
-                logging.info(f"Приватный чат: {group}. Отправлен запрос на подписку")
+                logging.info(f"Приватный чат: {channel}. Отправлен запрос на подписку")
                 continue
         try:
-            await client(JoinChannelRequest(group))
-            logging.info(f"Успешно подписано на канал: {group}")
+            logging.info(f"Зарежка {join_channel_delay} сек перед подпиской на канал")
+            await asyncio.sleep(join_channel_delay)
+            await client(JoinChannelRequest(channel))
+            logging.info(f"Успешно подписано на канал: {channel}")
         except Exception as e:
-            logging.error(f"Ошибка при подписке на канал {group}: {e}")
+            logging.error(f"Ошибка при подписке на канал {channel}: {e}")
 
 config = get_config()
 
@@ -204,30 +236,33 @@ client = OpenAI(api_key=config["openai_api_key"])
 async def main():
     api_id = int(config["api_id"])
     api_hash = config["api_hash"]
-    prompt_tone = config.get("prompt_tone", "Создай дружелюбный комментарий")
+    prompt_tone = config.get("prompt_tone") if len(config.get("prompt_tone")) else None
     comment_limit = int(config.get("comment_limit", 5))
     sleep_duration = int(config.get("sleep_duration", 3600))
+    join_channel_delay = int(config.get("join_channel_delay", 10))
 
+    proxy = get_proxy()
     accounts = read_sessions()
     if not accounts:
         logging.warning("Сессии не найдены")
         return
-
-    for account in accounts:
-        proxy = get_proxy()
+    logging.info(f"Аккаунтов найдено: {len(accounts)}")
+    for index, account in enumerate(accounts):
         client = TelegramClient(account, api_id, api_hash, proxy=proxy)
-
         await client.connect()
         if not await client.is_user_authorized():
-            logging.warning(f"Аккаунт {account[9:]} разлогигнен, перемещаем аккаунт и начинаем другую сессию.")
+            logging.warning(f"Аккаунт {account[9:].split('.')[0]} разлогигнен, перемещаем аккаунт и начинаем другую сессию.")
             continue
-        logging.info(f"Успешно авторизировано в аккаунт {account[9:]}")
+        logging.info(f"Успешно авторизировано в аккаунт {account[9:].split('.')[0]} ({index+1}/{len(accounts)})")
         try:
-            groups = read_groups()
-            await join_channels(client, groups)
+            channels = read_channels()
+            await join_channels(client, channels, join_channel_delay)
             logging.info("Ждем новый пост в каналах")
-            for group in groups:
-                client.loop.create_task(monitor_channel(client, group, prompt_tone, comment_limit, sleep_duration))
+            for channel in channels:
+                client.loop.create_task(monitor_channel(client, channel, prompt_tone, comment_limit, sleep_duration))
+        except KeyboardInterrupt:
+            logging.info("Завершение работы скрипта")
+            sys.exit(0)
         except Exception as e:
             logging.error(f"Ошибка: {e}")
 
