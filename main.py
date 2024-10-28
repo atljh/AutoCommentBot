@@ -28,6 +28,12 @@ logging.basicConfig(
     ]
 )
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+for lib_logger_name in logging.root.manager.loggerDict:
+    if lib_logger_name != __name__:
+        logging.getLogger(lib_logger_name).setLevel(logging.ERROR)
+
 def get_config():
     config = {}
     try:
@@ -133,7 +139,6 @@ async def monitor_channel(client, channel, prompt_tone, comment_limit, sleep_dur
         logging.info(f"Новый пост в канале {channel}")
         post_text = event.message.message
         message_id = event.message.id
-        sleep(10)
         comment = await generate_comment(post_text, prompt_tone)
         if not comment:
             return
@@ -146,7 +151,7 @@ async def monitor_channel(client, channel, prompt_tone, comment_limit, sleep_dur
                 return
 
             linked_group = await client.get_entity(full_channel.full_chat.linked_chat_id)
-            sleep(1)
+            
             await client.send_message(
                 entity=channel,
                 message=comment,

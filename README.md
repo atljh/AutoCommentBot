@@ -1,91 +1,94 @@
 Telegram Auto Comment Bot
 
-This is a Python-based bot that automatically monitors specified Telegram channels and posts thoughtful, context-aware comments using OpenAI's GPT-based prompts. The bot uses the Telethon library to interact with Telegram and is configured to use multiple accounts with proxy support for each session.
+This is a Python-based bot designed to automatically monitor specified Telegram channels and post thoughtful, context-aware comments using OpenAI's GPT-based prompts. The bot utilizes the Telethon library to interact with Telegram and can be configured to use multiple accounts with proxy support.
+
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue) ![Documentation](https://img.shields.io/badge/documentation-ready-yellow)
+
 Features
 
-    Automatic Commenting: Monitors channels for new posts and comments based on pre-defined tones or prompts.
-    Session Management: Uses multiple Telethon sessions to handle different accounts and proxies.
-    Comment Limiting and Sleep Mode: Allows setting a limit on the number of comments per account before putting it to sleep for a specified duration.
-    Error Handling and Logging: Logs all activities and handles exceptions like bans, mutes, and flood waits.
-    Proxy Support: Configurable proxies for each account session.
-    Customizable Prompts: Allows adjusting the tone of comments via prompt-based instructions.
+- **Automatic Commenting**: Monitors channels for new posts and adds comments based on pre-defined tones or prompts.
+- **Session Management**: Utilizes multiple Telethon sessions to manage different accounts and proxies.
+- **Comment Limiting and Sleep Mode**: Set limits on the number of comments per account and trigger a sleep period to avoid detection.
+- **Error Handling and Logging**: Logs all activities and gracefully handles errors like bans, mutes, and flood waits.
+- **Proxy Support**: Configurable proxies for each account session.
+- **Customizable Prompts**: Easily adjust the tone and style of comments using prompt-based instructions.
 
 Prerequisites
 
-    Python 3.8+
-    Telethon library
-    OpenAI API key (for generating comments using GPT-based prompts)
-    Telegram account(s) with active session files
-    Proxy information for each account (optional)
+- Python 3.8+
+- Telethon library
+- OpenAI API key (for generating comments using GPT-based prompts)
+- Telegram account(s) with active session files
+- Proxy information for each account (optional)
 
 Installation
 
-    Clone the repository:
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/telegram-auto-comment-bot.git
+   cd telegram-auto-comment-bot
+   ```
 
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+   ```
 
-git clone https://github.com/yourusername/telegram-auto-comment-bot.git
-cd telegram-auto-comment-bot
+3. Install the required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Create and activate a virtual environment:
+4. Create the necessary files:
+   - `config.txt`: For storing API keys and configuration settings.
+   - `groups.txt`: List of channels to monitor.
+   - `proxies.txt`: List of proxies (if needed).
+   - Session files for each account should be placed in the `accounts/` folder.
 
+5. Set up the `config.txt` file:
+   ```txt
+   api_id=<YOUR_API_ID>
+   api_hash=<YOUR_API_HASH>
+   openai_api_key=<YOUR_OPENAI_API_KEY>
+   ```
 
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+6. Prepare the `groups.txt` file: List the channels you want to monitor (without https://). Example:
+   ```txt
+   t.me/examplechannel1
+   t.me/examplechannel2
+   ```
 
-Install the required packages:
-
-
-pip install -r requirements.txt
-
-Create the necessary files:
-
-    config.txt: For storing API keys and configuration settings.
-    groups.txt: List of channels to monitor.
-    proxies.txt: List of proxies (if needed).
-    Session files for each account should be placed in the accounts/ folder.
-
-Set up the config.txt file:
-
-
-api_id=<YOUR_API_ID>
-api_hash=<YOUR_API_HASH>
-openai_api_key=<YOUR_OPENAI_API_KEY>
-
-Prepare the groups.txt file with the channels you want to monitor (without "https://"). For example:
-
-
-t.me/examplechannel1
-t.me/examplechannel2
-
-Prepare the proxies.txt file if you are using proxies:
-
-
-    172.120.53.203:62097:B8SHnMHa:N1TAkpN2
+7. Prepare the `proxies.txt` file (if using proxies):
+   ```txt
+   host:port:username:password
+   ```
 
 Usage
 
-    Run the bot:
+To run the bot, use the following command:
+```bash
+python main.py
+```
 
-    python bot.py
-
-    The bot will:
-        Log in using each account’s session file.
-        Join and monitor channels specified in groups.txt.
-        Respond to new posts with contextually relevant comments using OpenAI-generated responses based on the provided prompt tone.
+Bot Actions:
+- Logs in using each account’s session file.
+- Joins and monitors channels specified in `groups.txt`.
+- Responds to new posts with contextually relevant comments using OpenAI-generated responses based on the provided prompt tone.
 
 Configuration
-Setting Prompt Tone
 
-The prompt for generating comments is defined within the script. You can customize it to change the tone and style of the comments. For example, you can use a prompt like:
+### Setting Prompt Tone
 
-
+The prompt for generating comments is defined within the script. You can customize it to change the tone and style of the comments. For example:
+```txt
 "Write a supportive and friendly comment that engages with the post. Express appreciation and interest, and ask a follow-up question to continue the conversation."
+```
 
-Log Configuration
+### Log Configuration
 
-The bot logs all activities to logs.log and the console. You can configure the logging level and format in the script:
-
-
+The bot logs all activities to `logs.log` and the console. You can configure the logging level and format in the script:
+```python
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -94,13 +97,31 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+```
 
 Contributing
 
 Feel free to submit issues and pull requests to improve the bot. Make sure to follow standard coding conventions and document your code well.
+
+Roadmap
+
+- [ ] Add support for more Telegram APIs.
+- [ ] Improve error handling capabilities.
+- [ ] Implement a GUI for easier configuration.
+- [ ] Add support for multiple languages in comments.
+
+FAQ
+
+**Q: What happens if I get banned?**  
+A: The bot will log the error, and you may need to adjust your commenting strategy to avoid detection.
+
+**Q: Can I run multiple instances of the bot?**  
+A: Yes, but ensure each instance uses a different set of accounts and configuration files.
+
 License
 
 This project is open-source and available under the MIT License.
+
 Disclaimer
 
 This bot interacts with Telegram’s API, so use it responsibly and ensure that it adheres to Telegram’s terms of service. Automating comments excessively or violating Telegram's guidelines may lead to bans or other consequences for your accounts.
