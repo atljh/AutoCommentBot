@@ -1,17 +1,31 @@
 import os
 import sys
 import shutil
+import random
 import asyncio
 import logging
-import random
 from time import sleep
 from datetime import datetime
+from dataclasses import dataclass
+
+from openai import OpenAI
 from telethon import TelegramClient, events
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
 from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from openai import OpenAI
+
+@dataclass
+class Config:
+    api_id: int
+    api_hash: str
+    openai_api_key: str
+    prompt_tone: str = ""
+    sleep_duration: int = 30
+    comment_limit: int = 10
+    join_channel_delay: int = 15
+    use_users_prompts: bool = False
+    random_prompt: bool = False
 
 
 class LoggerSetup:
@@ -34,19 +48,26 @@ class LoggerSetup:
 
 
 class ConfigManager:
-    def __init__(self, config_file='config.txt'):
-        self.config_file = config_file
-        self.config = self.get_config()
-
-    def get_config(self):
-        config = {}
+    @staticmethod
+    def load_config(config_file='config.txt') -> Config:
+        config_data = {}
         try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
+            with open(config_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     if '=' in line:
                         key, value = line.strip().split('=', 1)
-                        config[key] = value
-            return config
+                        config_data[key] = value
+            return Config(
+                api_id=int(config_data["api_id"]),
+                api_hash=config_data["api_hash"],
+                openai_api_key=config_data["openai_api_key"],
+                prompt_tone=config_data.get("prompt_tone", ""),
+                sleep_duration=int(config_data.get("sleep_duration", 30)),
+                comment_limit=int(config_data.get("comment_limit", 10)),
+                join_channel_delay=int(config_data.get("join_channel_delay", 15)),
+                use_users_prompts=config_data.get("use_users_prompts", "False").lower() == "true",
+                random_prompt=config_data.get("random_prompt", "False").lower() == "true"
+            )
         except FileNotFoundError:
             logging.error("Файл config.txt не найден")
             return None
@@ -81,7 +102,7 @@ class FileManager:
             return []
 
     @staticmethod
-    def get_proxy(file='proxies.txt'):
+    def read_proxy(file='proxies.txt'):
         try:
             with open(file, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -207,7 +228,7 @@ class ChannelManager:
             except Exception as e:
                 logging.error(f"Ошибка при подписке на канал {channel}: {e}")
 
-    async def monitor_channel(self, client, channel, prompt_tone, sleep_duration, account, comment_limits):
+    async def monitor_channel(self, client, channel, prompt_tone, sleep_duration, account, comment_limit):
         comment_counter = 0
 
         @client.on(events.NewMessage(chats=channel))
@@ -242,7 +263,7 @@ class ChannelManager:
                 logging.info(f"Комментарий отправлен в пост {message_id} аккаунтом {account_phone}")
 
                 comment_counter += 1
-                if comment_counter >= comment_limits:
+                if comment_counter >= comment_limit:
                     logging.info(f"Аккаунт {account_phone} достиг лимита комментариев, пауза на {sleep_duration} секунд.")
                     await asyncio.sleep(sleep_duration)
                     comment_counter = 0
@@ -251,24 +272,25 @@ class ChannelManager:
 
 
 class TelegramBot:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
-        self.client = OpenAI(api_key=config["openai_api_key"])
+        self.client = OpenAI(api_key=config.openai_api_key)
         self.comment_generator = CommentGenerator(config, self.client)
         self.channel_manager = ChannelManager(config, self.comment_generator)
         self.active_accounts = []
 
     async def main(self):
-        api_id = int(self.config["api_id"])
-        api_hash = self.config["api_hash"]
-        proxy = FileManager.get_proxy()
-        prompt_tone = self.config.get("prompt_tone", "")
-        sleep_duration = int(self.config.get("sleep_duration", 30))
-        comment_limits = int(self.config.get("comment_limits", 10))
-        join_channel_delay = int(self.config.get("join_channel_delay", 15))
+        logging.info("Скрипт запущен")
+        api_id = self.config.api_id
+        api_hash = self.config.api_hash
+        prompt_tone = self.config.prompt_tone
+        sleep_duration = self.config.sleep_duration
+        comment_limit = self.config.comment_limit
+        join_channel_delay = self.config.join_channel_delay
         
         channels = FileManager.read_channels()
         sessions = FileManager.read_sessions()
+        proxy = FileManager.read_proxy()
         for session in sessions:
             try:
                 client = TelegramClient(session, api_id, api_hash, proxy=proxy)
@@ -279,7 +301,7 @@ class TelegramBot:
                 await self.channel_manager.join_channels(client, channels, join_channel_delay)
                 for channel in channels:
                     await self.channel_manager.monitor_channel(
-                        client, channel, prompt_tone, sleep_duration, account_phone, comment_limits
+                        client, channel, prompt_tone, sleep_duration, account_phone, comment_limit
                     )
                 self.active_accounts.append(client)
                 logging.info(f"Аккаунт {account_phone} успешно подключен и настроен.")
@@ -294,7 +316,7 @@ class TelegramBot:
 
 if __name__ == "__main__":
     logger = LoggerSetup.setup_logger()
-    config = ConfigManager().get_config()
+    config = ConfigManager.load_config()
     if not config:
         logging.error("Ошибка загрузки конфигурации, завершение работы.")
         sys.exit(1)
