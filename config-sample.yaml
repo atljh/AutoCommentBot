@@ -1,0 +1,15 @@
+# Основные настройки (необходимо заполнить)
+api:
+  api_id: 0                             # Telegram API ID (https://my.telegram.org/apps)
+  api_hash: "" # Telegram API Hash
+  # Ключ API OpenAI
+  openai_api_key: ""
+
+# Настройки работы бота (опционально, можно изменить для персонализации)
+settings:
+  prompt_tone: ""                     # Тон ответа в комментарии (должен быть в ковычках)
+  comment_limit: 2                    # Лимит комментариев на один аккаунт
+  sleep_duration: 3600                # Пауза после достижения лимита комментариев (в секундах)
+  join_channel_delay: 10              # Задержка перед подпиской на канал (в секундах)
+  random_prompt: false                # Выбор случайного пользовательского промпта (true/false)
+  detect_language: true               # Определять язык поста (true/false)
