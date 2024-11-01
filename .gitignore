@@ -3,5 +3,5 @@
 venv   
 logs.log
 /proxies.txt
-/config.txt
+/config.yaml
 /groups.txt
