@@ -1,5 +1,6 @@
 import os
 import sys
+import yaml
 import shutil
 import random
 import asyncio
@@ -9,24 +10,45 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from openai import OpenAI
+from langdetect import detect
 from telethon import TelegramClient, events
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
 from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
+from pydantic import BaseModel, Field, field_validator
 
-@dataclass
-class Config:
+class Config(BaseModel):
     api_id: int
     api_hash: str
     openai_api_key: str
-    prompt_tone: str = ""
-    sleep_duration: int = 30
-    comment_limit: int = 10
-    join_channel_delay: int = 15
-    use_users_prompts: bool = False
-    random_prompt: bool = False
+    prompt_tone: str = Field(default="Дружелюбный", description="Тон ответа в комментарии")
+    sleep_duration: int = Field(default=30, ge=0, description="Длительность паузы после лимита комментариев")
+    comment_limit: int = Field(default=10, ge=1, description="Лимит комментариев на одного пользователя")
+    join_channel_delay: int = Field(default=15, ge=0, description="Задержка перед подпиской на канал")
+    detect_language: bool = Field(default=False, description="Определять язык поста")
 
+
+    @field_validator('api_id')
+    def validate_api_id(cls, value):
+        if not value:
+            logging.error("api_id не найден")
+            sys.exit(0)
+        return value
+
+    @field_validator('api_hash')
+    def validate_api_hash(cls, value):
+        if len(value) < 32:
+            logging.error("api_hash должен быть длиной 32 символа")
+            sys.exit(0)
+        return value
+
+    @field_validator('openai_api_key')
+    def validate_openai_api_key(cls, value):
+        if not value:
+            logging.error("openai_api_key не найден")
+            sys.exit(0)
+        return value
 
 class LoggerSetup:
     @staticmethod
@@ -49,29 +71,10 @@ class LoggerSetup:
 
 class ConfigManager:
     @staticmethod
-    def load_config(config_file='config.txt') -> Config:
-        config_data = {}
-        try:
-            with open(config_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if '=' in line:
-                        key, value = line.strip().split('=', 1)
-                        config_data[key] = value
-            return Config(
-                api_id=int(config_data["api_id"]),
-                api_hash=config_data["api_hash"],
-                openai_api_key=config_data["openai_api_key"],
-                prompt_tone=config_data.get("prompt_tone", ""),
-                sleep_duration=int(config_data.get("sleep_duration", 30)),
-                comment_limit=int(config_data.get("comment_limit", 10)),
-                join_channel_delay=int(config_data.get("join_channel_delay", 15)),
-                use_users_prompts=config_data.get("use_users_prompts", "False").lower() == "true",
-                random_prompt=config_data.get("random_prompt", "False").lower() == "true"
-            )
-        except FileNotFoundError:
-            logging.error("Файл config.txt не найден")
-            return None
-
+    def load_config(config_file='config.yaml') -> Config:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config_data = yaml.safe_load(f)
+        return Config(**config_data['api'], **config_data['settings'])
 
 class FileManager:
     @staticmethod
@@ -94,7 +97,7 @@ class FileManager:
             with open(file, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
-                    if line and not line.startswith("#"):  # Игнорируем комментарии
+                    if line and not line.startswith("#"):
                         prompts.append(line)
             return prompts
         except FileNotFoundError:
@@ -138,9 +141,9 @@ class SessionManager:
         if not (await client.is_user_authorized()):
             await client.disconnect()
             SessionManager.move_session(client.session.filename, 'razlog')
-            logging.info(f"Клиент {account} не авторизован, сессия перемещена.")
+            logging.info(f"Аккаунт {account} не авторизован, сессия перемещена.")
             return False
-        logging.info(f"Клиент {account} успешно авторизован.")
+        logging.info(f"Аккаунт {account} успешно авторизован.")
         return True
 
 
@@ -148,36 +151,45 @@ class CommentGenerator:
     def __init__(self, config, openai_client):
         self.config = config
         self.client = openai_client
+        self.prompts = self.load_prompts()
 
-    async def generate_prompt(self, post_text, prompt_tone, custom_prompt=None):
-        if custom_prompt:
-            prompt = custom_prompt.replace("{post_text}", post_text)
-            if prompt_tone:
-                prompt = prompt.replace("{prompt_tone}", prompt_tone)
-        elif not prompt_tone:
-            prompt = (f'''
-            На основе следующего текста, напиши осознанный и позитивный комментарий.
-            Текст поста: {post_text}''')
-        else:
-            prompt = (f'''
-            Оригинальный пост: "{post_text}"
-            Тон ответа: {prompt_tone}''')
+    def load_prompts(self):
+        return FileManager.read_prompts()
+
+    def detect_language(self, text):
+        try:
+            language = detect(text)
+            return language
+        except Exception as e:
+            logging.error(f"Ошибка определения языка: {e}")
+            return "ru" 
+        
+    async def generate_prompt(self, post_text, prompt_tone):
+        random_prompt = bool(self.config.random_prompt)
+    
+        prompts = FileManager.read_prompts()
+        prompt = random.choice(prompts) if random_prompt else prompts[0] if prompts else None
+
+        post_language = self.detect_language(post_text)
+        
+        if not len(self.prompts):
+            logging.warning("Промпт не найден")
+            return None
+        prompt = prompt.replace("{post_text}", post_text)
+        prompt = prompt.replace("{prompt_tone}", prompt_tone)
+        prompt = prompt.replace("{post_lang}", post_language)
+
         return prompt
 
     async def generate_comment(self, post_text, prompt_tone):
-        use_users_prompts = bool(self.config.get("use_users_prompts"))
-        random_prompt = bool(self.config.get("random_prompt"))
-        custom_prompt = None
 
-        if use_users_prompts:
-            custom_prompts = FileManager.read_prompts()
-            custom_prompt = random.choice(custom_prompts) if random_prompt else custom_prompts[0] if custom_prompts else None
-
-        prompt = await self.generate_prompt(post_text, prompt_tone, custom_prompt)
-
+        prompt = await self.generate_prompt(post_text, prompt_tone)
+        if not prompt:
+            return None
+        
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.config.chat_gpt_model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": prompt}
@@ -186,7 +198,6 @@ class CommentGenerator:
                 n=1,
                 temperature=0.7)
             comment = response.choices[0].message.content
-            logging.info(f"Сгенерирован комментарий: {comment}")
             return comment
         except Exception as e:
             logging.error(f"Ошибка генерации комментария: {e}")
@@ -206,25 +217,27 @@ class ChannelManager:
         except UserNotParticipantError:
             return False
 
-    async def join_channels(self, client, channels, join_channel_delay):
+    async def join_channels(self, client, channels, join_channel_delay, account_phone):
         for channel in channels:
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity):
-                    logging.info(f"Клиент уже состоит в канале {channel}")
+                    logging.info(f"Аккаунт {account_phone} уже состоит в канале {channel}")
                     continue
             except Exception:
                 try:
+                    logging.info(f"Задержка перед подпиской на канал {join_channel_delay} сек")
                     await asyncio.sleep(join_channel_delay)
                     await client(ImportChatInviteRequest(channel[6:]))
-                    logging.info(f"Клиент присоединился к приватному каналу {channel}")
+                    logging.info(f"Аккаунт присоединился к приватному каналу {channel}")
                 except Exception as e:
                     logging.error(f"Ошибка при присоединении к каналу {channel}: {e}")
                     continue
             try:
+                logging.info(f"Задержка перед подпиской на канал {join_channel_delay} сек")
                 await asyncio.sleep(join_channel_delay)
                 await client(JoinChannelRequest(channel))
-                logging.info(f"Клиент присоединился к каналу {channel}")
+                logging.info(f"Аккаунт присоединился к каналу {channel}")
             except Exception as e:
                 logging.error(f"Ошибка при подписке на канал {channel}: {e}")
 
@@ -241,17 +254,20 @@ class ChannelManager:
             if message_id in self.post_commenting_accounts:
                 logging.info(f"Пропущен пост {message_id} - уже прокомментирован другим аккаунтом.")
                 return
-
-            comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
-            if not comment:
-                return
+            
 
             try:
                 channel_entity = await client.get_entity(channel)
                 full_channel = await client(GetFullChannelRequest(channel=channel_entity))
+                
+                logging.info(f"Новый пост в канале {channel_entity.title}")
 
                 if not full_channel.full_chat.linked_chat_id:
                     logging.info(f"Канал {channel} не связан с обсуждением, пропуск.")
+                    return
+                
+                comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
+                if not comment:
                     return
 
                 await client.send_message(
@@ -260,14 +276,20 @@ class ChannelManager:
                     comment_to=message_id
                 )
                 self.post_commenting_accounts[message_id] = account
-                logging.info(f"Комментарий отправлен в пост {message_id} аккаунтом {account_phone}")
+                logging.info(f"Комментарий отправлен в канал {channel_entity.title} аккаунтом {account_phone}")
 
                 comment_counter += 1
                 if comment_counter >= comment_limit:
                     logging.info(f"Аккаунт {account_phone} достиг лимита комментариев, пауза на {sleep_duration} секунд.")
                     await asyncio.sleep(sleep_duration)
                     comment_counter = 0
-            except (FloodWaitError, UserBannedInChannelError, MsgIdInvalidError, Exception) as e:
+            except FloodWaitError as e:
+                logging.warning(f"Флуд-таймаут: {e}")
+            except UserBannedInChannelError:
+                logging.warning(f"Нельзя отправить сообщение, вы забанены в этом чате: {channel}")
+            except MsgIdInvalidError:
+                logging.warning(f"На этот пост нельзя оставить сообщение")
+            except Exception as e:
                 logging.error(f"Ошибка при отправке комментария: {e}")
 
 
@@ -295,10 +317,10 @@ class TelegramBot:
             try:
                 client = TelegramClient(session, api_id, api_hash, proxy=proxy)
                 await client.connect()
-                account_phone = session.split('.')[0]
+                account_phone = session.split('/')[1].split('.')[0]
                 if not await SessionManager.check_if_authorized(client, account_phone):
                     continue
-                await self.channel_manager.join_channels(client, channels, join_channel_delay)
+                await self.channel_manager.join_channels(client, channels, join_channel_delay, account_phone)
                 for channel in channels:
                     await self.channel_manager.monitor_channel(
                         client, channel, prompt_tone, sleep_duration, account_phone, comment_limit
@@ -306,12 +328,11 @@ class TelegramBot:
                 self.active_accounts.append(client)
                 logging.info(f"Аккаунт {account_phone} успешно подключен и настроен.")
             except Exception as e:
-                logging.error(f"Ошибка при настройке клиента {session}: {e}")
+                logging.error(f"Ошибка при настройке аккаунта {session}: {e}")
 
         if self.active_accounts:
-            logging.info("Запуск всех подключённых аккаунтов...")
+            logging.info("Ждем новые посты в каналах")
             await asyncio.gather(*[client.run_until_disconnected() for client in self.active_accounts])
-            logging.info("Все аккаунты завершили выполнение.")
 
 
 if __name__ == "__main__":
