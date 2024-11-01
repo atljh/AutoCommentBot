@@ -5,18 +5,17 @@ import shutil
 import random
 import asyncio
 import logging
-from time import sleep
-from datetime import datetime
-from dataclasses import dataclass
+from collections import deque
 
 from openai import OpenAI
 from langdetect import detect
+from pydantic import BaseModel, Field, field_validator
+
 from telethon import TelegramClient, events
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
 from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from pydantic import BaseModel, Field, field_validator
 
 class Config(BaseModel):
     api_id: int
@@ -209,6 +208,8 @@ class ChannelManager:
         self.config = config
         self.comment_generator = comment_generator
         self.post_commenting_accounts = {}
+        self.account_queue = deque()
+        self.active_account = None 
 
     async def is_participant(self, client, channel):
         try:
@@ -241,13 +242,22 @@ class ChannelManager:
             except Exception as e:
                 logging.error(f"Ошибка при подписке на канал {channel}: {e}")
 
-    async def monitor_channel(self, client, channel, prompt_tone, sleep_duration, account, comment_limit):
+    async def switch_to_next_account(self):
+        self.account_queue.rotate(-1)
+        self.active_account = self.account_queue[0] if self.account_queue else None
+        
+    async def monitor_channel(self, channel, prompt_tone, sleep_duration, comment_limit):
         comment_counter = 0
+        client, account_phone = self.active_account
 
         @client.on(events.NewMessage(chats=channel))
         async def new_post_handler(event):
             nonlocal comment_counter
-            account_phone = account.split('.')[0]
+
+            if self.active_account is None:
+                logging.warning("Нет доступного аккаунта для комментирования")
+                return
+
             message_id = event.message.id
             post_text = event.message.message
 
@@ -255,7 +265,6 @@ class ChannelManager:
                 logging.info(f"Пропущен пост {message_id} - уже прокомментирован другим аккаунтом.")
                 return
             
-
             try:
                 channel_entity = await client.get_entity(channel)
                 full_channel = await client(GetFullChannelRequest(channel=channel_entity))
@@ -275,7 +284,7 @@ class ChannelManager:
                     message=comment,
                     comment_to=message_id
                 )
-                self.post_commenting_accounts[message_id] = account
+                self.post_commenting_accounts[message_id] = account_phone
                 logging.info(f"Комментарий отправлен в канал {channel_entity.title} аккаунтом {account_phone}")
 
                 comment_counter += 1
@@ -283,6 +292,8 @@ class ChannelManager:
                     logging.info(f"Аккаунт {account_phone} достиг лимита комментариев, пауза на {sleep_duration} секунд.")
                     await asyncio.sleep(sleep_duration)
                     comment_counter = 0
+                    await self.switch_to_next_account()
+
             except FloodWaitError as e:
                 logging.warning(f"Флуд-таймаут: {e}")
             except UserBannedInChannelError:
@@ -321,18 +332,16 @@ class TelegramBot:
                 if not await SessionManager.check_if_authorized(client, account_phone):
                     continue
                 await self.channel_manager.join_channels(client, channels, join_channel_delay, account_phone)
-                for channel in channels:
-                    await self.channel_manager.monitor_channel(
-                        client, channel, prompt_tone, sleep_duration, account_phone, comment_limit
-                    )
+                self.channel_manager.account_queue.append((client, account_phone))
                 self.active_accounts.append(client)
-                logging.info(f"Аккаунт {account_phone} успешно подключен и настроен.")
+                logging.info(f"Аккаунт {account_phone} успешно подключен и добавлен в очередь.")
             except Exception as e:
                 logging.error(f"Ошибка при настройке аккаунта {session}: {e}")
 
-        if self.active_accounts:
+        if self.channel_manager.account_queue:
+            self.channel_manager.active_account = self.channel_manager.account_queue[0]
             logging.info("Ждем новые посты в каналах")
-            await asyncio.gather(*[client.run_until_disconnected() for client in self.active_accounts])
+            await asyncio.gather(*[self.channel_manager.monitor_channel(channel, prompt_tone, sleep_duration, comment_limit) for channel in channels])
 
 
 if __name__ == "__main__":

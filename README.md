@@ -41,16 +41,16 @@ Installation
    ```
 
 4. Create the necessary files:
-   - `config.txt`: For storing API keys and configuration settings.
+   - `config.yaml`: For storing API keys and configuration settings.
    - `groups.txt`: List of channels to monitor.
    - `proxies.txt`: List of proxies (if needed).
    - Session files for each account should be placed in the `accounts/` folder.
 
-5. Set up the `config.txt` file:
+5. Set up the `config.yaml` file:
    ```txt
-   api_id=<YOUR_API_ID>
-   api_hash=<YOUR_API_HASH>
-   openai_api_key=<YOUR_OPENAI_API_KEY>
+   api_id: <YOUR_API_ID>
+   api_hash: <YOUR_API_HASH>
+   openai_api_key: <YOUR_OPENAI_API_KEY>
    ```
 
 6. Prepare the `groups.txt` file: List the channels you want to monitor (without https://). Example:
