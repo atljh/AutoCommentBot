@@ -341,8 +341,11 @@ class TelegramBot:
         if self.channel_manager.account_queue:
             self.channel_manager.active_account = self.channel_manager.account_queue[0]
             logging.info("Ждем новые посты в каналах")
-            await asyncio.gather(*[self.channel_manager.monitor_channel(channel, prompt_tone, sleep_duration, comment_limit) for channel in channels])
-
+            # await asyncio.gather(*[self.channel_manager.monitor_channel(channel, prompt_tone, sleep_duration, comment_limit) for channel in channels])
+            await asyncio.gather(
+                *[self.channel_manager.monitor_channel(channel, prompt_tone, sleep_duration, comment_limit) for channel in channels],
+                *(client.run_until_disconnected() for client in self.active_accounts)
+            )
 
 if __name__ == "__main__":
     logger = LoggerSetup.setup_logger()
