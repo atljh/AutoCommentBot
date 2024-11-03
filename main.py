@@ -266,16 +266,17 @@ class ChannelManager:
         self.account_queue.append((client, account_phone))
         self.comment_limits[account_phone] = self.config.comment_limit
         self.sleep_durations[account_phone] = 0 
-    
+
     async def rotate_account(self):
-        self.account_queue.rotate(-1)
-        current_client, account_phone = self.account_queue[0]
-        if self.sleep_durations[account_phone] > 0:
-            logging.info(f'Go sleep {self.sleep_durations[account_phone]}')
-            await asyncio.sleep(self.sleep_durations[account_phone])
-            logging.info('Sleep done')
-            self.sleep_durations[account_phone] = 0 
-            self.comment_limits[account_phone] = self.config.comment_limit
+        while True:
+            self.account_queue.rotate(-1)
+            current_client, account_phone = self.account_queue[0]
+            
+            if self.sleep_durations[account_phone] == 0:
+                break
+            else:
+                logging.info(f'Аккаунт {account_phone} находится в режиме сна на {self.sleep_durations[account_phone]} секунд.')
+                await asyncio.sleep(self.sleep_durations[account_phone])
 
         return current_client, account_phone
 
@@ -288,17 +289,13 @@ class ChannelManager:
             post_text = event.message.message
             message_id = event.message.id
 
-            if account_phone not in self.comment_limits:
-                logging.error(f"Аккаунт {account_phone} не найден в лимитах комментариев.")
-                return
-            
+            logging.info(f"Новый пост в канале {channel}")
+
             if self.comment_limits[account_phone] <= 0:
                 self.sleep_durations[account_phone] = sleep_duration
-                logging.info(f"Аккаунт {account_phone} достиг лимита комментариев. Ожидание {sleep_duration} секунд.")
+                logging.info(f"Аккаунт {account_phone} достиг лимита комментариев. Переход к следующему аккаунту.")
                 current_client, account_phone = await self.rotate_account()
-                return 
-            
-            logging.info(f"Новый пост в канале {channel}")
+
             comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
             if not comment:
                 return
@@ -312,29 +309,23 @@ class ChannelManager:
                 logging.info(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel}")
 
                 self.comment_limits[account_phone] -= 1
-                print(self.comment_limits[account_phone])
                 if self.comment_limits[account_phone] <= 0:
                     self.sleep_durations[account_phone] = sleep_duration
-                    logging.info(f"Аккаунт {account_phone} достиг лимита комментариев и переходит в режим сна на {sleep_duration} секунд. Переход на следующий аккаунт.")
+                    logging.info(f"Аккаунт {account_phone} достиг лимита и переходит в сон на {sleep_duration} секунд.")
                     current_client, account_phone = await self.rotate_account()
 
             except FloodWaitError as e:
                 logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
                 self.sleep_durations[account_phone] = e.seconds
                 current_client, account_phone = await self.rotate_account()
-
+                
             except UserBannedInChannelError:
                 logging.warning(f"Аккаунт {account_phone} заблокирован в канале {channel}")
-                self.account_queue.remove((current_client, account_phone))
-                if not self.account_queue:
-                    logging.error("Нет доступных аккаунтов.")
-                    return
             except MsgIdInvalidError:
                 logging.warning("Канал не связан с чатом")
             except Exception as e:
                 logging.error(f"Ошибка при отправке комментария: {e}")
-
-
+                
 class TelegramBot:
     def __init__(self, config: Config):
         self.config = config
