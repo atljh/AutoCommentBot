@@ -194,7 +194,8 @@ class CommentGenerator:
         
         prompt = prompt.replace("{post_text}", post_text)
         prompt = prompt.replace("{prompt_tone}", prompt_tone)
-        prompt = prompt.replace("{post_lang}", post_language)
+        if self.config.detect_language:
+            prompt = prompt.replace("{post_lang}", post_language)
 
         return prompt
 
@@ -235,7 +236,6 @@ class ChannelManager:
             await client.get_permissions(channel, 'me')
             return True
         except UserNotParticipantError:
-            logging.info(f"Пользователь не участник канала: {channel}")
             return
         except Exception as e:
             logging.error(f"Ошибка при обработке канала {channel}: {e}")
@@ -374,6 +374,7 @@ class TelegramBot:
         if not self.channel_manager.account_queue:
             logging.error("Не удалось добавить аккаунты в очередь. Завершение работы.")
             return
+
 
         self.channel_manager.active_account = self.channel_manager.account_queue[0]
         logging.info("Ждем новые посты в каналах")
