@@ -279,8 +279,9 @@ class ChannelManager:
             if self.sleep_durations[account_phone] == 0:
                 break
             else:
-                logging.info(f'Аккаунт {account_phone} находится в режиме сна на {self.sleep_durations[account_phone]} секунд.')
                 await asyncio.sleep(self.sleep_durations[account_phone])
+                logging.info(f'Аккаунт {account_phone} выходит с режима сна.')
+            self.comment_limits[account_phone] = self.config.comment_limit
 
         return current_client, account_phone
 
