@@ -128,17 +128,21 @@ class FileManager:
 
     @staticmethod
     def check_proxy(proxy):
+        proxies = {
+            'http': f"socks5://{proxy['username']}:{proxy['password']}@{proxy['addr']}:{proxy['port']}",
+            'https': f"socks5://{proxy['username']}:{proxy['password']}@{proxy['addr']}:{proxy['port']}"
+        }
         try:
-            response = requests.get("http://ipinfo.io/json", proxies={
-                "http": f"socks5://{proxy['addr']}:{proxy['port']}",
-                "https": f"socks5://{proxy['addr']}:{proxy['port']}"
-            }, timeout=5)
-            response.raise_for_status()
-            return True
+            response = requests.get('https://httpbin.org/ip', proxies=proxies, timeout=10)
+            if response.status_code == 200:
+                print("Прокси работает. Видимый IP:", response.json()['origin'])
+                return True
+            else:
+                print("Прокси не отвечает, код состояния:", response.status_code)
+                return False
         except requests.exceptions.RequestException as e:
-            logging.error(f"Прокси не работает: {e}")
             return False
-        
+            
 class SessionManager:
     @staticmethod
     def move_session(session_path, reason, directory='accounts/'):
