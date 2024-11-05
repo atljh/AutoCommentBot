@@ -6,6 +6,7 @@ import random
 import asyncio
 import logging
 import requests
+from typing import Tuple
 from collections import deque
 
 from openai import OpenAI
@@ -26,11 +27,11 @@ class Config(BaseModel):
     prompt_tone: str = Field(default="Дружелюбный", description="Тон ответа в комментарии")
     sleep_duration: int = Field(default=30, ge=0, description="Длительность паузы после лимита комментариев")
     comment_limit: int = Field(default=10, ge=1, description="Лимит комментариев на одного пользователя")
-    join_channel_delay: int = Field(default=15, ge=0, description="Задержка перед подпиской на канал")
+    join_channel_delay: Tuple[int, int] = Field(default=(10, 20), description="Диапазон задержки перед подпиской на канал")
+    send_message_delay: Tuple[int, int] = Field(default=(10, 20), description="Задержка перед отправкой сообщения")
     random_prompt: bool = Field(default=False, description="Использовать рандомные пользовательские промпты")
     detect_language: bool = Field(default=False, description="Определять язык поста")
-
-
+    
     @field_validator('api_id')
     def validate_api_id(cls, value):
         if not value:
@@ -76,7 +77,20 @@ class ConfigManager:
     def load_config(config_file='config.yaml') -> Config:
         with open(config_file, 'r', encoding='utf-8') as f:
             config_data = yaml.safe_load(f)
-        return Config(**config_data['api'], **config_data['settings'])
+
+            join_delay = config_data['settings'].get('join_channel_delay')
+            send_message_delay = config_data['settings'].get('send_message_delay')
+
+            if isinstance(join_delay, str) and '-' in join_delay:
+                min_delay, max_delay = map(int, join_delay.split('-'))
+                config_data['settings']['join_channel_delay'] = (min_delay, max_delay)
+
+            if isinstance(send_message_delay, str) and '-' in send_message_delay:                
+                min_delay, max_delay = map(int, send_message_delay.split('-'))
+                config_data['settings']['send_message_delay'] = (min_delay, max_delay)
+
+
+            return Config(**config_data['api'], **config_data['settings'])
 
 class FileManager:
     @staticmethod
@@ -230,7 +244,6 @@ class ChannelManager:
         self.sleep_durations = {}
         self.active_account = None 
 
-
     async def is_participant(self, client, channel):
         try:
             await client.get_permissions(channel, 'me')
@@ -240,6 +253,10 @@ class ChannelManager:
         except Exception as e:
             logging.error(f"Ошибка при обработке канала {channel}: {e}")
             return
+    
+    def get_random_delay(self, delay_range: Tuple[int, int]) -> int:
+        min_delay, max_delay = delay_range
+        return random.randint(min_delay, max_delay)
 
     async def join_channels(self, client, channels, join_channel_delay, account_phone):
         for channel in channels:
@@ -250,8 +267,9 @@ class ChannelManager:
                     continue
             except Exception:
                 try:
-                    logging.info(f"Задержка перед подпиской на канал {join_channel_delay} сек")
-                    await asyncio.sleep(join_channel_delay)
+                    delay = self.get_random_delay(join_channel_delay)
+                    logging.info(f"Задержка перед подпиской на канал {delay} сек")
+                    await asyncio.sleep(delay)
                     await client(ImportChatInviteRequest(channel[6:]))
                     logging.info(f"Аккаунт присоединился к приватному каналу {channel}")
                     continue
@@ -259,8 +277,9 @@ class ChannelManager:
                     logging.error(f"Ошибка при присоединении к каналу {channel}: {e}")
                     continue
             try:
-                logging.info(f"Задержка перед подпиской на канал {join_channel_delay} сек")
-                await asyncio.sleep(join_channel_delay)
+                delay = self.get_random_delay(join_channel_delay)
+                logging.info(f"Задержка перед подпиской на канал {delay} сек")
+                await asyncio.sleep(delay)
                 await client(JoinChannelRequest(channel))
                 logging.info(f"Аккаунт присоединился к каналу {channel}")
             except Exception as e:
@@ -305,6 +324,10 @@ class ChannelManager:
             if not comment:
                 return
 
+            send_message_delay = self.config.send_message_delay
+            delay = self.get_random_delay(send_message_delay)
+            logging.info(f"Задержка перед отправкой сообщения {delay} сек")
+            await asyncio.sleep(delay)
             try:
                 await current_client.send_message(
                     entity=channel,
@@ -387,6 +410,7 @@ class TelegramBot:
 if __name__ == "__main__":
     logger = LoggerSetup.setup_logger()
     config = ConfigManager.load_config()
+
     if not config:
         logging.error("Ошибка загрузки конфигурации, завершение работы.")
         sys.exit(1)
