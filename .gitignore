@@ -5,3 +5,7 @@ logs.log
 /proxies.txt
 /config.yaml
 /groups.txt
+__pycache__
+poetry.lock
+*.session
+*.json
