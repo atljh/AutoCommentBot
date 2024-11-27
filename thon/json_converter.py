@@ -32,10 +32,11 @@ class JsonConverter(BaseSession):
                     self.__proxy = None
                     return
             else:
-                raise ValueError("Неправильный формат прокси.")
+                raise ValueError("Неправильный формат прокси, продолжаем без него")
         except Exception as e:
             console.log(e, style="red")
-            raise SystemExit("Ошибка в настройке прокси.") from e
+            self.__proxy = None
+            return
 
     def check_proxy(self, ip, port, username, password):
         proxies = {
