@@ -2,6 +2,7 @@ import asyncio
 from asyncio import Semaphore
 from pathlib import Path
 from typing import Generator
+from collections import deque
 
 from tooler import move_item
 
@@ -30,10 +31,10 @@ class Starter(BaseSession):
     ):
         try:
             channels = FileManager.read_channels()
-            t = Commenter(item, json_file, json_data, config, channels)
+            commenter = Commenter(item, json_file, json_data, config, channels)
             async with self.semaphore:
                 try:
-                    r = await t.main()
+                    r = await commenter.main()
                 except Exception as e:
                     console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
                     r = "ERROR_UNKNOWN"
@@ -46,7 +47,7 @@ class Starter(BaseSession):
                 move_item(item, self.errors_dir, True, True)
                 move_item(json_file, self.errors_dir, True, True)
             if "OK" in r:
-                console.log(item.name, r, style="green")
+                console.log(f"Аккаунт {item.name} успешно прокомментировал посты.", style="green")
         except Exception as e:
             console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
 

@@ -4,6 +4,7 @@ import logging
 from collections import deque
 from typing import Tuple, List
 
+from openai import OpenAI
 from langdetect import detect
 
 from telethon import events
@@ -20,22 +21,24 @@ class ChannelManager:
     def __init__(self, config, comment_generator):
         self.config = config
         self.comment_generator = comment_generator
-        self.account_queue = deque()
-        self.comment_limits = {}
-        self.sleep_durations = {}
-        self.active_account = None 
+        self.prompt_tone = self.config.prompt_tone
+        self.sleep_duration = self.config.sleep_duration
+        self.join_channel_delay = self.config.join_channel_delay
+        self.openai_client = OpenAI(api_key=config.openai_api_key)
+        self.comment_generator = CommentGenerator(config, self.openai_client)
+        self.account_comment_count = {}
 
     async def is_participant(self, client, channel):
         try:
             await client.get_permissions(channel, 'me')
             return True
         except UserNotParticipantError:
-            return
+            return False
         except Exception as e:
             console.log(f"Ошибка при обработке канала {channel}: {e}")
-            return
+            return False
     
-    def get_random_delay(self, delay_range: Tuple[int, int]) -> int:
+    def get_random_delay(self, delay_range):
         min_delay, max_delay = delay_range
         return random.randint(min_delay, max_delay)
 
@@ -66,75 +69,77 @@ class ChannelManager:
             except Exception as e:
                 console.log(f"Ошибка при подписке на канал {channel}: {e}")
 
-    def add_account(self, client, account_phone):
-        self.account_queue.append((client, account_phone))
-        self.comment_limits[account_phone] = self.config.comment_limit
-        self.sleep_durations[account_phone] = 0 
+    async def monitor_channels(self, client, channels, prompt_tone, account_phone):
+        """
+        Запуск мониторинга каналов.
+        :param client: клиент Telethon
+        :param channels: список каналов для мониторинга
+        :param prompt_tone: тональность для комментариев
+        :param account_phone: телефон аккаунта
+        """
+        for channel in channels:
+            client.add_event_handler(
+                lambda event: self.new_post_handler(client, event, prompt_tone, account_phone),
+                events.NewMessage(chats=channel)
+            )
+        console.log("Мониторинг каналов начался...")
+        
+        await asyncio.Future()
 
-    async def rotate_account(self):
-        while True:
-            self.account_queue.rotate(-1)
-            current_client, account_phone = self.account_queue[0]
+    async def new_post_handler(self, client, event, prompt_tone, account_phone):
+        """
+        Обработчик нового поста в канале, генерирует и отправляет комментарий.
+        :param event: событие, содержащее информацию о новом сообщении
+        :param prompt_tone: тональность комментариев
+        :param account_phone: телефон аккаунта
+        """
+        post_text = event.message.message
+        message_id = event.message.id
+        channel = event.chat
+
+        console.log(f"Новый пост в канале {channel.title}")
+
+        if self.account_comment_count.get(account_phone, 0) >= 2:
+            console.log(f"Аккаунт {account_phone} на паузе. Ожидаем 30 секунд.")
+            await asyncio.sleep(30)
+            console.log("Аккаунт вышел с паузы")
+            self.account_comment_count[account_phone] = 0 
+
+        comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
+        if not comment:
+            console.log("Не удалось сгенерировать комментарий.")
+            return
+
+        send_message_delay = self.config.send_message_delay
+        delay = self.get_random_delay(send_message_delay)
+        console.log(f"Задержка перед отправкой сообщения {delay} сек")
+        await asyncio.sleep(delay)
+
+        try:
+            await client.send_message(
+                entity=channel,
+                message=comment,
+                comment_to=message_id
+            )
+            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}")
             
-            if self.sleep_durations[account_phone] == 0:
-                break
-            else:
-                await asyncio.sleep(self.sleep_durations[account_phone])
-                console.log(f'Аккаунт {account_phone} выходит с режима сна.')
-            self.comment_limits[account_phone] = self.config.comment_limit
+            self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
 
-        return current_client, account_phone
-
-    async def monitor_channel(self, channel, prompt_tone, sleep_duration):
-        current_client, account_phone = await self.rotate_account()
-
-        @current_client.on(events.NewMessage(chats=channel))
-        async def new_post_handler(event):
-            nonlocal account_phone, current_client
-            post_text = event.message.message
-            message_id = event.message.id
-
-            console.log(f"Новый пост в канале {channel}")
-
-            if self.comment_limits[account_phone] <= 0:
-                self.sleep_durations[account_phone] = sleep_duration
-                console.log(f"Аккаунт {account_phone} достиг лимита комментариев. Переход к следующему аккаунту.")
-                current_client, account_phone = await self.rotate_account()
-
-            comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
-            if not comment:
-                return
-
-            send_message_delay = self.config.send_message_delay
-            delay = self.get_random_delay(send_message_delay)
-            console.log(f"Задержка перед отправкой сообщения {delay} сек")
-            await asyncio.sleep(delay)
-            try:
-                await current_client.send_message(
-                    entity=channel,
-                    message=comment,
-                    comment_to=message_id
-                )
-                console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel}")
-
-                self.comment_limits[account_phone] -= 1
-                if self.comment_limits[account_phone] <= 0:
-                    self.sleep_durations[account_phone] = sleep_duration
-                    console.log(f"Аккаунт {account_phone} достиг лимита и переходит в сон на {sleep_duration} секунд.")
-                    current_client, account_phone = await self.rotate_account()
-
-            except FloodWaitError as e:
-                logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
-                self.sleep_durations[account_phone] = e.seconds
-                current_client, account_phone = await self.rotate_account()
+            if self.account_comment_count.get(account_phone, 0) >= 2:
+                console.log(f"Аккаунт {account_phone} на паузе. Ожидаем 30 секунд.")
+                await asyncio.sleep(30)
+                console.log("Аккаунт вышел с паузы")
+                self.account_comment_count[account_phone] = 0 
                 
-            except UserBannedInChannelError:
-                logging.warning(f"Аккаунт {account_phone} заблокирован в канале {channel}")
-            except MsgIdInvalidError:
-                logging.warning("Канал не связан с чатом")
-            except Exception as e:
-                console.log(f"Ошибка при отправке комментария: {e}")
-  
+        except FloodWaitError as e:
+            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
+        except UserBannedInChannelError:
+            logging.warning(f"Аккаунт {account_phone} заблокирован в канале {channel.title}")
+        except MsgIdInvalidError:
+            logging.warning("Канал не связан с чатом")
+        except Exception as e:
+            console.log(f"Ошибка при отправке комментария: {e}")
+
 
 class CommentGenerator:
     def __init__(self, config, openai_client):
