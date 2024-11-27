@@ -84,36 +84,6 @@ class ConfigManager:
 
             return Config(**config_data['api'], **config_data['settings'])
 
-              
-
-# for session in sessions:
-#     try:
-#         client = TelegramClient(session, api_id, api_hash, proxy=proxy)
-#         await client.connect()
-#         account_phone = os.path.basename(session).split('.')[0]
-#         if not await SessionManager.check_if_authorized(client, account_phone):
-#             continue
-#         await self.channel_manager.join_channels(client, channels, join_channel_delay, account_phone)
-#         self.channel_manager.add_account(client, account_phone) 
-#         logging.info(f"Аккаунт {account_phone} успешно подключен и добавлен в очередь.")
-#     except Exception as e:
-#         logging.error(f"Ошибка при настройке аккаунта {session}: {e}")
-
-
-# if not self.channel_manager.account_queue:
-#     logging.error("Не удалось добавить аккаунты в очередь. Завершение работы.")
-#     return
-
-
-# self.channel_manager.active_account = self.channel_manager.account_queue[0]
-# logging.info("Ждем новые посты в каналах")
-
-# await asyncio.gather(
-#     *[self.channel_manager.monitor_channel(channel, prompt_tone, sleep_duration) for channel in channels],
-#     *(client.run_until_disconnected() for client, _ in self.channel_manager.account_queue)
-# )
-
-
 def main():
     config = ConfigManager.load_config()
     sessions_count = JsonConverter().main()
@@ -126,10 +96,6 @@ def main():
 
     s = Starter(sessions_count, config)
     asyncio.run(s.main())
-        # prompt_tone = self.config.prompt_tone
-        # sleep_duration = self.config.sleep_duration
-        # join_channel_delay = self.config.join_channel_delay
 
-        # channels = FileManager.read_channels()
 if __name__ == "__main__":
     main()

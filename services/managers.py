@@ -4,6 +4,7 @@ import logging
 from collections import deque
 from typing import Tuple, List
 
+import openai
 from openai import OpenAI
 from langdetect import detect
 
@@ -179,6 +180,12 @@ class CommentGenerator:
                 temperature=0.7)
             comment = response.choices[0].message.content
             return comment
+        except openai.AuthenticationError as e:
+            console.log(f"Ошибка авторизации: неверный API ключ")
+        except openai.RateLimitError as e:
+            console.log(f"Не хватает денег на балансе ChatGPT")
+        except openai.PermissionDeniedError as e:
+            console.log("В вашей стране не работает ChatGPT, включите VPN")
         except Exception as e:
             console.log(f"Ошибка генерации комментария: {e}")
             return None
