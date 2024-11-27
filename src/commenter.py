@@ -13,7 +13,7 @@ from telethon.types import (
 )
 
 from thon.base_thon import BaseThon
-from services.managers import ChannelManager, CommentGenerator
+from services.managers import ChannelManager
 from services.console import console
 
 class Commenter(BaseThon):
@@ -31,7 +31,7 @@ class Commenter(BaseThon):
         self.channels = channels
         self.json_file = json_file
         self.account_phone = os.path.basename(self.item).split('.')[0]
-        self.channel_manager = ChannelManager(config, self.comment_generator)
+        self.channel_manager = ChannelManager(config)
 
     async def __main(self):
         await self.channel_manager.join_channels(self.client, self.channels, self.account_phone)

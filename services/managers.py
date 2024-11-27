@@ -18,11 +18,11 @@ from .console import console
 
 
 class ChannelManager:
-    def __init__(self, config, comment_generator):
+    def __init__(self, config):
         self.config = config
-        self.comment_generator = comment_generator
         self.prompt_tone = self.config.prompt_tone
         self.sleep_duration = self.config.sleep_duration
+        self.comment_limit = self.config.comment_limit
         self.join_channel_delay = self.config.join_channel_delay
         self.openai_client = OpenAI(api_key=config.openai_api_key)
         self.comment_generator = CommentGenerator(config, self.openai_client)
@@ -42,16 +42,16 @@ class ChannelManager:
         min_delay, max_delay = delay_range
         return random.randint(min_delay, max_delay)
 
-    async def join_channels(self, client, channels, join_channel_delay, account_phone):
+    async def join_channels(self, client, channels, account_phone):
         for channel in channels:
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity):
-                    console.log(f"Аккаунт {account_phone} уже состоит в канале {channel}")
+
                     continue
             except Exception:
                 try:
-                    delay = self.get_random_delay(join_channel_delay)
+                    delay = self.get_random_delay(self.join_channel_delay)
                     console.log(f"Задержка перед подпиской на канал {delay} сек")
                     await asyncio.sleep(delay)
                     await client(ImportChatInviteRequest(channel[6:]))
@@ -61,7 +61,7 @@ class ChannelManager:
                     console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
                     continue
             try:
-                delay = self.get_random_delay(join_channel_delay)
+                delay = self.get_random_delay(self.join_channel_delay)
                 console.log(f"Задержка перед подпиской на канал {delay} сек")
                 await asyncio.sleep(delay)
                 await client(JoinChannelRequest(channel))
@@ -69,17 +69,10 @@ class ChannelManager:
             except Exception as e:
                 console.log(f"Ошибка при подписке на канал {channel}: {e}")
 
-    async def monitor_channels(self, client, channels, prompt_tone, account_phone):
-        """
-        Запуск мониторинга каналов.
-        :param client: клиент Telethon
-        :param channels: список каналов для мониторинга
-        :param prompt_tone: тональность для комментариев
-        :param account_phone: телефон аккаунта
-        """
+    async def monitor_channels(self, client, channels, account_phone):
         for channel in channels:
             client.add_event_handler(
-                lambda event: self.new_post_handler(client, event, prompt_tone, account_phone),
+                lambda event: self.new_post_handler(client, event, self.prompt_tone, account_phone),
                 events.NewMessage(chats=channel)
             )
         console.log("Мониторинг каналов начался...")
@@ -87,21 +80,15 @@ class ChannelManager:
         await asyncio.Future()
 
     async def new_post_handler(self, client, event, prompt_tone, account_phone):
-        """
-        Обработчик нового поста в канале, генерирует и отправляет комментарий.
-        :param event: событие, содержащее информацию о новом сообщении
-        :param prompt_tone: тональность комментариев
-        :param account_phone: телефон аккаунта
-        """
         post_text = event.message.message
         message_id = event.message.id
         channel = event.chat
 
         console.log(f"Новый пост в канале {channel.title}")
 
-        if self.account_comment_count.get(account_phone, 0) >= 2:
+        if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
             console.log(f"Аккаунт {account_phone} на паузе. Ожидаем 30 секунд.")
-            await asyncio.sleep(30)
+            await asyncio.sleep(self.sleep_duration)
             console.log("Аккаунт вышел с паузы")
             self.account_comment_count[account_phone] = 0 
 
@@ -125,9 +112,9 @@ class ChannelManager:
             
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
 
-            if self.account_comment_count.get(account_phone, 0) >= 2:
+            if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
                 console.log(f"Аккаунт {account_phone} на паузе. Ожидаем 30 секунд.")
-                await asyncio.sleep(30)
+                await asyncio.sleep(self.sleep_duration)
                 console.log("Аккаунт вышел с паузы")
                 self.account_comment_count[account_phone] = 0 
                 
