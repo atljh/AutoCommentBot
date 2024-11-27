@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Generator
 
 from jsoner import json_read_sync
+from services import console
 
 class BaseSession:
     def __init__(self):
@@ -16,9 +17,9 @@ class BaseSession:
         for item in self.base_dir.glob("*.session"):
             json_file = item.with_suffix(".json")
             if not json_file.is_file():
-                print(f"{item.name} | Не найден json файл!")
+                console.log(f"{item.name} | Не найден json файл!", style="red")
                 continue
             if not (json_data := json_read_sync(json_file)):
-                print(f"{item.name} | Ошибка чтения json")
+                console.log(f"{item.name} | Ошибка чтения json", style="red")
                 continue
             yield item, json_file, json_data

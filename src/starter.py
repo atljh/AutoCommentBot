@@ -3,12 +3,10 @@ from asyncio import Semaphore
 from pathlib import Path
 from typing import Generator
 from collections import deque
-
 from tooler import move_item
-
 from thon.base_session import BaseSession
 from services.console import console
-from services.managers import FileManager
+from services.managers import ChannelManager
 from src.commenter import Commenter
 
 
@@ -20,6 +18,8 @@ class Starter(BaseSession):
     ):
         self.semaphore = Semaphore(threads)
         self.config = config
+        # Создаем один экземпляр ChannelManager для всех Commenter
+        self.channel_manager = ChannelManager(config)
         super().__init__()
 
     async def _main(
@@ -30,8 +30,8 @@ class Starter(BaseSession):
         config
     ):
         try:
-            channels = FileManager.read_channels()
-            commenter = Commenter(item, json_file, json_data, config, channels)
+            # Передаем общий экземпляр ChannelManager в Commenter
+            commenter = Commenter(item, json_file, json_data, config, self.channel_manager)
             async with self.semaphore:
                 try:
                     r = await commenter.main()
@@ -62,4 +62,6 @@ class Starter(BaseSession):
         if not tasks:
             return False
         await asyncio.gather(*tasks, return_exceptions=True)
+        # Обрабатываем аккаунты в очереди после завершения всех задач
+        await self.channel_manager.process_accounts()
         return True
