@@ -6,7 +6,8 @@ from typing import Generator
 from tooler import move_item
 
 from thon.base_session import BaseSession
-from console import console
+from services.console import console
+from services.managers import FileManager
 from src.commenter import Commenter
 
 
@@ -14,8 +15,10 @@ class Starter(BaseSession):
     def __init__(
         self,
         threads: int,
+        config
     ):
         self.semaphore = Semaphore(threads)
+        self.config = config
         super().__init__()
 
     async def _main(
@@ -25,24 +28,27 @@ class Starter(BaseSession):
         json_data: dict,
         config
     ):
-        t = Commenter(
-            item,
-            json_file,
-            json_data,
-            config
-        )
-        async with self.semaphore:
-            r = await t.main()
-        if "OK" not in r:
-            console.log(item.name, r, style="red")
-        if "ERROR_AUTH" in r:
-            move_item(item, self.banned_dir, True, True)
-            move_item(json_file, self.banned_dir, True, True)
-        if "ERROR_STORY" in r:
-            move_item(item, self.errors_dir, True, True)
-            move_item(json_file, self.errors_dir, True, True)
-        if "OK" in r:
-            console.log(item.name, r, style="green")
+        try:
+            channels = FileManager.read_channels()
+            t = Commenter(item, json_file, json_data, config, channels)
+            async with self.semaphore:
+                try:
+                    r = await t.main()
+                except Exception as e:
+                    console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
+                    r = "ERROR_UNKNOWN"
+            if "OK" not in r:
+                console.log(item.name, r, style="red")
+            if "ERROR_AUTH" in r:
+                move_item(item, self.banned_dir, True, True)
+                move_item(json_file, self.banned_dir, True, True)
+            if "ERROR_STORY" in r:
+                move_item(item, self.errors_dir, True, True)
+                move_item(json_file, self.errors_dir, True, True)
+            if "OK" in r:
+                console.log(item.name, r, style="green")
+        except Exception as e:
+            console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
 
     def __get_sessions_and_users(self) -> Generator:
         for item, json_file, json_data in self.find_sessions():
@@ -50,8 +56,8 @@ class Starter(BaseSession):
 
     async def main(self) -> bool:
         tasks = set()
-        for item, json_file, json_data, users in self.__get_sessions_and_users():
-            tasks.add(self._main(item, json_file, json_data, users))
+        for item, json_file, json_data in self.__get_sessions_and_users():
+            tasks.add(self._main(item, json_file, json_data, self.config))
         if not tasks:
             return False
         await asyncio.gather(*tasks, return_exceptions=True)

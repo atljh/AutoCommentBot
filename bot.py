@@ -1,32 +1,16 @@
-import os
 import sys
 import yaml
-import shutil
-import random
 import asyncio
 import logging
-import requests
-from pathlib import Path
-from collections import deque
 from typing import Tuple, List, Generator
 
-from langdetect import detect
 from pydantic import BaseModel, Field, field_validator
 
-from telethon import TelegramClient, events
-from telethon.errors import UserNotParticipantError, FloodWaitError
-from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
-from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest
-
-from basethon.base_thon import BaseThon
-from basethon.base_session import BaseSession
-from basethon.json_converter import JsonConverter
-from basethon.starter import Starter
+from thon.json_converter import JsonConverter
+from src.starter import Starter
 
 
 from services.console import console
-from tooler import move_item
 
 class Config(BaseModel):
     api_id: int
@@ -130,7 +114,7 @@ class ConfigManager:
 # )
 
 
-async def _main():
+def main():
     config = ConfigManager.load_config()
     sessions_count = JsonConverter().main()
     if not sessions_count:
@@ -140,11 +124,12 @@ async def _main():
         logging.error("Ошибка загрузки конфигурации, завершение работы.")
         sys.exit(1)
 
-        
+    s = Starter(sessions_count, config)
+    asyncio.run(s.main())
         # prompt_tone = self.config.prompt_tone
         # sleep_duration = self.config.sleep_duration
         # join_channel_delay = self.config.join_channel_delay
 
         # channels = FileManager.read_channels()
 if __name__ == "__main__":
-    asyncio.run(_main())
+    main()

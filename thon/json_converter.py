@@ -9,7 +9,7 @@ from tooler import ProxyParser
 
 from ask_from_history import ask_from_history
 from thon.base_session import BaseSession
-from console import console
+from services.console import console
 
 
 class JsonConverter(BaseSession):

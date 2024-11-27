@@ -193,7 +193,7 @@ class CommentGenerator:
 
 class FileManager:
     @staticmethod
-    def read_channels(file='groups.txt'):
+    def read_channels(file='groups.txt') -> list:
         try:
             with open(file, 'r', encoding='utf-8') as f:
                 return [line.strip().replace("https://", "") for line in f.readlines()]
