@@ -18,7 +18,6 @@ class Starter(BaseSession):
     ):
         self.semaphore = Semaphore(threads)
         self.config = config
-        # Создаем один экземпляр ChannelManager для всех Commenter
         self.channel_manager = ChannelManager(config)
         super().__init__()
 
@@ -30,7 +29,6 @@ class Starter(BaseSession):
         config
     ):
         try:
-            # Передаем общий экземпляр ChannelManager в Commenter
             commenter = Commenter(item, json_file, json_data, config, self.channel_manager)
             async with self.semaphore:
                 try:
@@ -62,6 +60,5 @@ class Starter(BaseSession):
         if not tasks:
             return False
         await asyncio.gather(*tasks, return_exceptions=True)
-        # Обрабатываем аккаунты в очереди после завершения всех задач
         await self.channel_manager.process_accounts()
         return True

@@ -51,6 +51,7 @@ class JsonConverter(BaseSession):
                 print("Прокси не отвечает, код состояния:", response.status_code)
                 return False
         except requests.exceptions.RequestException as e:
+            console.log(f"Ошибка при проверке прокси {e}")
             return False
         
     def _main(self, item: Path, json_file: Path, json_data: dict):

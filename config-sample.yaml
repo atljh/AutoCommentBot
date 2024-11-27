@@ -1,7 +1,5 @@
 # Основные настройки (необходимо заполнить)
 api:
-  api_id: 0 # Telegram API ID (https://my.telegram.org/apps)
-  api_hash: "" # Telegram API Hash
   # Ключ API OpenAI
   openai_api_key: ""
 
