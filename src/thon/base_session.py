@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Generator
 
 from jsoner import json_read_sync
-from services import console
+from src.console import console
 
 class BaseSession:
     def __init__(self):

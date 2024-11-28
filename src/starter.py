@@ -1,13 +1,14 @@
 import asyncio
-from asyncio import Semaphore
 from pathlib import Path
+from asyncio import Semaphore
 from typing import Generator
-from collections import deque
+
 from tooler import move_item
-from thon.base_session import BaseSession
-from services.console import console
-from services.managers import ChannelManager
+
+from src.console import console
 from src.commenter import Commenter
+from src.managers import ChannelManager
+from src.thon import BaseSession
 
 
 class Starter(BaseSession):
@@ -60,5 +61,4 @@ class Starter(BaseSession):
         if not tasks:
             return False
         await asyncio.gather(*tasks, return_exceptions=True)
-        # await self.channel_manager.process_accounts()
         return True

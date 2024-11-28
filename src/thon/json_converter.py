@@ -1,15 +1,17 @@
+import sys
 import asyncio
 import requests
 from pathlib import Path
 
-from jsoner import json_write_sync
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+
+from jsoner import json_write_sync
 from tooler import ProxyParser
 
-from ask_from_history import ask_from_history
-from thon.base_session import BaseSession
-from services.console import console
+from src.console import console
+from src.thon.base_session import BaseSession
+from scripts.ask_from_history import ask_from_history
 
 
 class JsonConverter(BaseSession):
@@ -21,7 +23,6 @@ class JsonConverter(BaseSession):
         if proxy == 'Без прокси':
             self.__proxy = None
             return
-
         try:
             proxy_parts = proxy.strip().split(':')[1:]
             if len(proxy_parts) == 4:
@@ -76,4 +77,7 @@ class JsonConverter(BaseSession):
         for item, json_file, json_data in self.find_sessions():
             self._main(item, json_file, json_data)
             count += 1
+        if not count:
+            console.log("Нет аккаунтов в папке с сессиями!", style="yellow")
+            sys.exit(1)
         return count

@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
 
-from thon.base_thon import BaseThon
-from services.console import console
-from services.managers import ChannelManager
 from config import Config
+from src.console import console
+from src.thon import BaseThon
+from src.managers import ChannelManager
 
 class Commenter(BaseThon):
     def __init__(
@@ -26,7 +26,7 @@ class Commenter(BaseThon):
 
     async def __main(self):
         await self.channel_manager.join_channels(self.client, self.account_phone)
-        console.log(f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.")
+        console.log(f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.", style="green")
         await self.channel_manager.monitor_channels(self.client, self.account_phone)
 
     async def _main(self) -> str:

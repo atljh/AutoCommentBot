@@ -1,22 +1,19 @@
 import random
 import asyncio
 import logging
-from collections import deque
 from typing import List
+from collections import deque
 
-import openai
 from openai import OpenAI
-from langdetect import detect
-
 from telethon import events
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from telethon.tl.types import InputPeerChannel
 
-from .console import console
-
+from src.console import console
+from .file_manager import FileManager
+from .comment_manager import CommentManager
 
 class ChannelManager:
     MAX_SEND_ATTEMPTS = 3 
@@ -30,7 +27,7 @@ class ChannelManager:
         self.send_comment_delay = self.config.send_message_delay
         self.channels = FileManager.read_channels()
         self.openai_client = OpenAI(api_key=config.openai_api_key)
-        self.comment_generator = CommentGenerator(config, self.openai_client)
+        self.comment_manager = CommentManager(config, self.openai_client)
 
         self.account_comment_count = {}
         self.accounts = {}
@@ -53,17 +50,17 @@ class ChannelManager:
             self.account_queue.append(self.active_account) 
         if self.account_queue:
             self.active_account = self.account_queue.popleft()
-            console.log(f"Смена активного аккаунта на {self.active_account}")
+            console.log(f"Смена активного аккаунта на {self.active_account}", style="green")
         else:
             console.log("Все аккаунты завершили работу", style="yellow")
             self.stop_event.set() 
 
     async def sleep_account(self, account_phone):
         sleep_time = self.sleep_duration
-        console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...")
+        console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...", style="yellow")
         await asyncio.sleep(sleep_time)
         self.account_comment_count[account_phone] = 0
-        console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.")
+        console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.", style="green")
 
     async def is_participant(self, client, channel):
             try:
@@ -141,13 +138,13 @@ class ChannelManager:
                 message=comment,
                 comment_to=message_id
             )
-            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}")
+            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}", style="green")
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
             if self.account_comment_count[account_phone] >= self.comment_limit:
                 await self.switch_to_next_account()
                 await self.sleep_account(account_phone)
         except FloodWaitError as e:
-            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
+            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
             await asyncio.sleep(e.seconds)
             await self.switch_to_next_account()
         except UserBannedInChannelError:
@@ -169,7 +166,6 @@ class ChannelManager:
                 await self.switch_to_next_account()
                 next_client = self.accounts.get(self.active_account)
                 if next_client:
- 
                     await self.sleep_before_send_message()
                     await self.send_comment(next_client, account_phone, channel, comment, message_id, attempts + 1)
                 else:
@@ -186,100 +182,16 @@ class ChannelManager:
         message_id = event.message.id
         channel = event.chat
 
-        console.log(f"Новый пост в канале {channel.title} для аккаунта {account_phone}")
+        console.log(f"Новый пост в канале {channel.title} для аккаунта {account_phone}", style="green")
 
         if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
             await self.switch_to_next_account()
             await self.sleep_account(account_phone)
             return
         
-        comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
+        comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
         if not comment:
             return
 
         await self.sleep_before_send_message()
         await self.send_comment(client, account_phone, channel, comment, message_id)
-
-class CommentGenerator:
-    def __init__(self, config, openai_client):
-        self.config = config
-        self.client = openai_client
-        self.prompts = self.load_prompts()
-
-    def load_prompts(self):
-        return FileManager.read_prompts()
-
-    def detect_language(self, text):
-        try:
-            language = detect(text)
-            return language
-        except Exception as e:
-            console.log(f"Ошибка определения языка: {e}")
-            return "ru" 
-        
-    async def generate_prompt(self, post_text, prompt_tone):
-
-        if not len(self.prompts):
-            console.log("Промпт не найден")
-            return None
-        
-        random_prompt = bool(self.config.random_prompt)
-        prompt = random.choice(self.prompts) if random_prompt else self.prompts[0] if self.prompts else None
-        post_language = self.detect_language(post_text)
-        
-        prompt = prompt.replace("{post_text}", post_text)
-        prompt = prompt.replace("{prompt_tone}", prompt_tone)
-        if self.config.detect_language:
-            prompt = prompt.replace("{post_lang}", post_language)
-
-        return prompt
-
-    async def generate_comment(self, post_text, prompt_tone):
-        prompt = await self.generate_prompt(post_text, prompt_tone)
-        if not prompt:
-            return None
-        try:
-            response = self.client.chat.completions.create(
-                model=self.config.chat_gpt_model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=150,
-                n=1,
-                temperature=0.7)
-            comment = response.choices[0].message.content
-            return comment
-        except openai.AuthenticationError as e:
-            console.log(f"Ошибка авторизации: неверный API ключ", style="red")
-        except openai.RateLimitError as e:
-            console.log(f"Не хватает денег на балансе ChatGPT", style="red")
-        except openai.PermissionDeniedError as e:
-            console.log("В вашей стране не работает ChatGPT, включите VPN", style="red")
-        except Exception as e:
-            console.log(f"Ошибка генерации комментария: {e}", style="red")
-            return None
-
-class FileManager:
-    @staticmethod
-    def read_channels(file='groups.txt') -> list:
-        try:
-            with open(file, 'r', encoding='utf-8') as f:
-                return [line.strip().replace("https://", "") for line in f.readlines()]
-        except FileNotFoundError:
-            console.log("Файл groups.txt не найден")
-            return None
-
-    @staticmethod
-    def read_prompts(file='prompts.txt'):
-        prompts = []
-        try:
-            with open(file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        prompts.append(line)
-            return prompts
-        except FileNotFoundError:
-            console.log("Файл prompts.txt не найден")
-            return []
