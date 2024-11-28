@@ -27,6 +27,7 @@ class ChannelManager:
         self.sleep_duration = self.config.sleep_duration
         self.comment_limit = self.config.comment_limit
         self.join_channel_delay = self.config.join_channel_delay
+        self.send_comment_delay = self.config.send_message_delay
         self.channels = FileManager.read_channels()
         self.openai_client = OpenAI(api_key=config.openai_api_key)
         self.comment_generator = CommentGenerator(config, self.openai_client)
@@ -75,9 +76,15 @@ class ChannelManager:
                 return False
         
     async def sleep_before_send_message(self):
-        min_delay, max_delay = self.config.send_message_delay
+        min_delay, max_delay = self.send_comment_delay
         delay = random.randint(min_delay, max_delay)
         console.log(f"Задержка перед отправкой сообщения {delay} сек")
+        await asyncio.sleep(delay)
+
+    async def sleep_before_enter_channel(self):
+        min_delay, max_delay = self.join_channel_delay
+        delay = random.randint(min_delay, max_delay)
+        console.log(f"Задержка перед подпиской на канал {delay} сек")
         await asyncio.sleep(delay)
 
     async def join_channels(self, client, account_phone):
@@ -88,9 +95,7 @@ class ChannelManager:
                     continue
             except Exception:
                 try:
-                    delay = self.get_random_delay(self.join_channel_delay)
-                    console.log(f"Задержка перед подпиской на канал {delay} сек")
-                    await asyncio.sleep(delay)
+                    await self.sleep_before_enter_channel()
                     await client(ImportChatInviteRequest(channel[6:]))
                     console.log(f"Аккаунт {account_phone} присоединился к приватному каналу {channel}")
                     continue
@@ -102,9 +107,7 @@ class ChannelManager:
                         console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
                         continue
             try:
-                delay = self.get_random_delay(self.join_channel_delay)
-                console.log(f"Задержка перед подпиской на канал {delay} сек")
-                await asyncio.sleep(delay)
+                await self.sleep_before_enter_channel()
                 await client(JoinChannelRequest(channel))
                 console.log(f"Аккаунт присоединился к каналу {channel}")
             except Exception as e:
