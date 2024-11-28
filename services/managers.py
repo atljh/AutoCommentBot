@@ -61,7 +61,7 @@ class ChannelManager:
         sleep_time = self.sleep_duration
         console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...")
         await asyncio.sleep(sleep_time)
-        self.account_comment_count[account_phone] = self.comment_limit
+        self.account_comment_count[account_phone] = 0
         console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.")
 
     async def is_participant(self, client, channel):
@@ -130,7 +130,6 @@ class ChannelManager:
 
         try:
             channel_entity = await self.get_channel_entity(client, channel)
-            print(channel_entity)
             if not channel_entity:
                 console.log("Канал не найден или недоступен.", style="red")
                 return
@@ -163,10 +162,9 @@ class ChannelManager:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
             
             if attempts < self.MAX_SEND_ATTEMPTS:
-                console.log(f"Попытка {attempts + 1}/{self.MAX_SEND_ATTEMPTS} отправить сообщение...")
+                console.log(f"Попытка {attempts + 1}/{self.MAX_SEND_ATTEMPTS} отправить сообщение c другого аккаунта...")
                 await self.switch_to_next_account()
                 next_client = self.accounts.get(self.active_account)
-                print(next_client)
                 if next_client:
  
                     await self.sleep_before_send_message()
