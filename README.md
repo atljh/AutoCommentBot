@@ -25,9 +25,9 @@ Installation
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/telegram-auto-comment-bot.git
-   cd telegram-auto-comment-bot
-   ```
+   git clone https://github.com/atljh/AutoCommentBot.git
+   cd AutoCommentBot
+   ```v
 
 2. Create and activate a virtual environment:
    ```bash
@@ -37,19 +37,17 @@ Installation
 
 3. Install the required packages:
    ```bash
-   pip install -r requirements.txt
+   pip install poetry
+   poetry install
    ```
 
 4. Create the necessary files:
    - `config.yaml`: For storing API keys and configuration settings.
    - `groups.txt`: List of channels to monitor.
-   - `proxies.txt`: List of proxies (if needed).
    - Session files for each account should be placed in the `accounts/` folder.
 
 5. Set up the `config.yaml` file:
    ```txt
-   api_id: <YOUR_API_ID>
-   api_hash: <YOUR_API_HASH>
    openai_api_key: <YOUR_OPENAI_API_KEY>
    ```
 
@@ -59,10 +57,6 @@ Installation
    t.me/examplechannel2
    ```
 
-7. Prepare the `proxies.txt` file (if using proxies):
-   ```txt
-   host:port:username:password
-   ```
 
 Usage
 
@@ -85,19 +79,6 @@ The prompt for generating comments is defined within the script. You can customi
 "Write a supportive and friendly comment that engages with the post. Express appreciation and interest, and ask a follow-up question to continue the conversation."
 ```
 
-### Log Configuration
-
-The bot logs all activities to `logs.log` and the console. You can configure the logging level and format in the script:
-```python
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-```
 
 Contributing
 
