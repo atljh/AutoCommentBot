@@ -13,12 +13,14 @@ from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-
+from telethon.tl.types import InputPeerChannel
 
 from .console import console
 
 
 class ChannelManager:
+    MAX_SEND_ATTEMPTS = 3 
+
     def __init__(self, config):
         self.config = config
         self.prompt_tone = self.config.prompt_tone
@@ -28,9 +30,12 @@ class ChannelManager:
         self.channels = FileManager.read_channels()
         self.openai_client = OpenAI(api_key=config.openai_api_key)
         self.comment_generator = CommentGenerator(config, self.openai_client)
+
         self.account_comment_count = {}
+        self.accounts = {}
+
         self.active_account = None 
-        self.account_queue = deque() 
+        self.account_queue = deque()
         self.stop_event = asyncio.Event()
 
     def add_accounts_to_queue(self, accounts: List[str]):
@@ -38,6 +43,9 @@ class ChannelManager:
             self.account_queue.append(account)
         if not self.active_account and self.account_queue:
             self.active_account = self.account_queue.popleft()
+    
+    def add_account(self, account: dict):
+        self.accounts.update(account)
 
     async def switch_to_next_account(self):
         if self.active_account:
@@ -53,6 +61,7 @@ class ChannelManager:
         sleep_time = self.sleep_duration
         console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...")
         await asyncio.sleep(sleep_time)
+        self.account_comment_count[account_phone] = self.comment_limit
         console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.")
 
     async def is_participant(self, client, channel):
@@ -65,9 +74,11 @@ class ChannelManager:
                 console.log(f"Ошибка при обработке канала {channel}: {e}")
                 return False
         
-    def get_random_delay(self, delay_range):
-        min_delay, max_delay = delay_range
-        return random.randint(min_delay, max_delay)
+    async def sleep_before_send_message(self):
+        min_delay, max_delay = self.config.send_message_delay
+        delay = random.randint(min_delay, max_delay)
+        console.log(f"Задержка перед отправкой сообщения {delay} сек")
+        await asyncio.sleep(delay)
 
     async def join_channels(self, client, account_phone):
         for channel in self.channels:
@@ -84,8 +95,12 @@ class ChannelManager:
                     console.log(f"Аккаунт {account_phone} присоединился к приватному каналу {channel}")
                     continue
                 except Exception as e:
-                    console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
-                    continue
+                    if "is not valid anymore" in str(e):
+                        console.log("Вы забанены в канале")
+                        continue
+                    else:
+                        console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
+                        continue
             try:
                 delay = self.get_random_delay(self.join_channel_delay)
                 console.log(f"Задержка перед подпиской на канал {delay} сек")
@@ -104,9 +119,67 @@ class ChannelManager:
         console.log(f"Мониторинг каналов начался для аккаунта {account_phone}...")
         await self.stop_event.wait()
 
+    async def get_channel_entity(self, client, channel):
+        try:
+            return await client.get_entity(channel)
+        except Exception as e:
+            console.log(f"Ошибка получения объекта канала: {e}", style="red")
+            return None
+
+    async def send_comment(self, client, account_phone, channel, comment, message_id, attempts=0):
+
+        try:
+            channel_entity = await self.get_channel_entity(client, channel)
+            print(channel_entity)
+            if not channel_entity:
+                console.log("Канал не найден или недоступен.", style="red")
+                return
+            await client.send_message(
+                entity=channel_entity,
+                message=comment,
+                comment_to=message_id
+            )
+            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}")
+            self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
+            if self.account_comment_count[account_phone] >= self.comment_limit:
+                await self.switch_to_next_account()
+                await self.sleep_account(account_phone)
+        except FloodWaitError as e:
+            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
+            await asyncio.sleep(e.seconds)
+            await self.switch_to_next_account()
+        except UserBannedInChannelError:
+            console.log(f"Аккаунт {account_phone} заблокирован в канале {channel.title}", style="red")
+            await self.switch_to_next_account()
+        except MsgIdInvalidError:
+            console.log("Канал не связан с чатом", style="red")
+            await self.switch_to_next_account()
+        except Exception as e:
+            if "private and you lack permission" in str(e):
+                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+            elif "You can't write" in str(e):
+                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+            else:
+                console.log(f"Ошибка при отправке комментария: {e}", style="red")
+            
+            if attempts < self.MAX_SEND_ATTEMPTS:
+                console.log(f"Попытка {attempts + 1}/{self.MAX_SEND_ATTEMPTS} отправить сообщение...")
+                await self.switch_to_next_account()
+                next_client = self.accounts.get(self.active_account)
+                print(next_client)
+                if next_client:
+ 
+                    await self.sleep_before_send_message()
+                    await self.send_comment(next_client, account_phone, channel, comment, message_id, attempts + 1)
+                else:
+                    console.log("Нет доступных аккаунтов для отправки.", style="red")
+            else:
+                console.log(f"Не удалось отправить сообщение после {self.MAX_SEND_ATTEMPTS} попыток.", style="red")
+
+        
     async def new_post_handler(self, client, event, prompt_tone, account_phone):
         if account_phone != self.active_account:
-            return 
+            return
 
         post_text = event.message.message
         message_id = event.message.id
@@ -117,41 +190,14 @@ class ChannelManager:
         if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
             await self.switch_to_next_account()
             await self.sleep_account(account_phone)
-
             return
-
+        
         comment = await self.comment_generator.generate_comment(post_text, prompt_tone)
         if not comment:
-            console.log("Не удалось сгенерировать комментарий.")
             return
 
-        send_message_delay = self.config.send_message_delay
-        delay = self.get_random_delay(send_message_delay)
-        console.log(f"Задержка перед отправкой сообщения {delay} сек")
-        await asyncio.sleep(delay)
-
-        try:
-            await client.send_message(
-                entity=channel,
-                message=comment,
-                comment_to=message_id
-            )
-            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}")
-
-            self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
-            if self.account_comment_count[account_phone] >= self.comment_limit:
-                await self.switch_to_next_account()
-                await self.sleep_account(account_phone)
-        except FloodWaitError as e:
-            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.")
-            await self.switch_to_next_account()
-            await asyncio.sleep(e.seconds)
-        except UserBannedInChannelError:
-            console.log(f"Аккаунт {account_phone} заблокирован в канале {channel.title}", style="red")
-        except MsgIdInvalidError:
-            console.log("Канал не связан с чатом", style="red")
-        except Exception as e:
-            console.log(f"Ошибка при отправке комментария: {e}", style="red")
+        await self.sleep_before_send_message()
+        await self.send_comment(client, account_phone, channel, comment, message_id)
 
 class CommentGenerator:
     def __init__(self, config, openai_client):

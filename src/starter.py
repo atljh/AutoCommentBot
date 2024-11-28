@@ -17,8 +17,8 @@ class Starter(BaseSession):
         config
     ):
         self.semaphore = Semaphore(threads)
-        self.config = config
         self.channel_manager = ChannelManager(config)
+        self.config = config
         super().__init__()
 
     async def _main(
@@ -60,5 +60,5 @@ class Starter(BaseSession):
         if not tasks:
             return False
         await asyncio.gather(*tasks, return_exceptions=True)
-        await self.channel_manager.process_accounts()
+        # await self.channel_manager.process_accounts()
         return True

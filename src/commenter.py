@@ -1,14 +1,10 @@
 import os
-import asyncio
 from pathlib import Path
-from telethon import events
-from services.console import console
-from services.managers import ChannelManager
-
 
 from thon.base_thon import BaseThon
-from services.managers import ChannelManager
 from services.console import console
+from services.managers import ChannelManager
+from config import Config
 
 class Commenter(BaseThon):
     def __init__(
@@ -16,8 +12,8 @@ class Commenter(BaseThon):
         item: Path,
         json_file: Path,
         json_data: dict,
-        config,
-        channel_manager
+        config: Config,
+        channel_manager: ChannelManager
     ):
         super().__init__(item=item, json_data=json_data)
         self.item = item
@@ -26,6 +22,7 @@ class Commenter(BaseThon):
         self.account_phone = os.path.basename(self.item).split('.')[0]
         self.channel_manager = channel_manager
         self.channel_manager.add_accounts_to_queue([self.account_phone])
+        self.channel_manager.add_account({self.account_phone: self.client})
 
     async def __main(self):
         await self.channel_manager.join_channels(self.client, self.account_phone)
