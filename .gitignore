@@ -7,3 +7,4 @@ logs.log
 /groups.txt
 __pycache__
 poetry.lock
+*.json
