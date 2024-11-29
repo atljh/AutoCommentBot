@@ -1,4 +1,6 @@
-Telegram Auto Comment Bot
+![Working](https://media.giphy.com/media/20NLMBm0BkUOwNljwv/giphy.gif)
+
+## 🧐 About <a name = "about"></a>
 
 This is a Python-based bot designed to automatically monitor specified Telegram channels and post thoughtful, context-aware comments using OpenAI's GPT-based prompts. The bot utilizes the Telethon library to interact with Telegram and can be configured to use multiple accounts with proxy support.
 
@@ -21,14 +23,15 @@ Prerequisites
 - Telegram account(s) with active session files
 - Proxy information for each account (optional)
 
-Installation
+## 🚀 Installation <a name = "getting_started"></a>
+
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/atljh/AutoCommentBot.git
    cd AutoCommentBot
-   ```v
-
+   ```
+## Option A: Run the Script Directly
 2. Create and activate a virtual environment:
    ```bash
    python -m venv venv
@@ -57,12 +60,20 @@ Installation
    t.me/examplechannel2
    ```
 
+## Option B: Compile the Script into an Executable
+ 
+   ```bash
+   scripts/compile.cmd
+   ```
 
-Usage
+## 🎈 Usage <a name = "usage"></a>
 
-To run the bot, use the following command:
-```bash
+```python
 python main.py
+```
+of
+```bash
+dist/main.exe
 ```
 
 Bot Actions:
