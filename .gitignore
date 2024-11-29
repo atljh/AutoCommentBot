@@ -9,3 +9,4 @@ __pycache__
 poetry.lock
 history_proxies.json
 /logs
+dist
