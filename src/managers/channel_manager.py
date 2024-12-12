@@ -8,7 +8,7 @@ from openai import OpenAI
 from telethon import events
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
-from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 
 from src.console import console
@@ -127,7 +127,6 @@ class ChannelManager:
             return None
 
     async def send_comment(self, client, account_phone, channel, comment, message_id, attempts=0):
-
         try:
             channel_entity = await self.get_channel_entity(client, channel)
             if not channel_entity:
@@ -158,6 +157,14 @@ class ChannelManager:
                 console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             elif "You can't write" in str(e):
                 console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+            elif "You join the discussion group before commenting" in str(e):
+                console.log("Для комментирование необходимо вступить в группу.")
+                join_result = await self.join_discussion_group(client, channel_entity)
+                if join_result:
+                    await self.send_comment(client, account_phone, channel, comment, message_id)
+                    return
+                else:
+                    return
             else:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
             
@@ -173,7 +180,31 @@ class ChannelManager:
             else:
                 console.log(f"Не удалось отправить сообщение после {self.MAX_SEND_ATTEMPTS} попыток.", style="red")
 
+
+    async def join_discussion_group(self, client, channel_entity):
+        try:
+            full_channel = await client(GetFullChannelRequest(channel=channel_entity))
+            
+            linked_chat_id = full_channel.full_chat.linked_chat_id
+            if not linked_chat_id:
+                console.log(f"Канал {channel_entity.title} не связан с группой.", style="bold yellow")
+                return
+            
+            linked_group = await client.get_entity(linked_chat_id)
+            console.log(f"Попытка вступить в группу: {linked_group.title}", style="bold cyan")
+            
+            await client(JoinChannelRequest(linked_group))
+            console.log(f"Успешно вступили в группу: {linked_group.title}", style="bold green")
+
+            return True
         
+        except Exception as e:
+            if "You have successfully requested" in str(e):
+                console.log("Запрос на подписку уже отправлен", style="yellow")
+                return False
+            console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
+            return False
+
     async def new_post_handler(self, client, event, prompt_tone, account_phone):
         if account_phone != self.active_account:
             return
