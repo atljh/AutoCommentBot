@@ -1,5 +1,4 @@
 import sys
-
 from src.console import console
 
 class FileManager:
@@ -10,6 +9,7 @@ class FileManager:
                 return [line.strip().replace("https://", "") for line in f.readlines()]
         except FileNotFoundError:
             console.log("Файл groups.txt не найден", style="bold red")
+            sys.exit(1)
             return None
 
     @staticmethod
@@ -24,4 +24,5 @@ class FileManager:
             return prompts
         except FileNotFoundError:
             console.log("Файл prompts.txt не найден", style="bold red")
+            sys.exit(1)
             return []
