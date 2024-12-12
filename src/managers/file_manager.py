@@ -6,12 +6,15 @@ class FileManager:
     def read_channels(file='groups.txt') -> list:
         try:
             with open(file, 'r', encoding='utf-8') as f:
-                return [line.strip().replace("https://", "") for line in f.readlines()]
+                return [
+                    line.strip().replace(" ", "").replace("https://", "")
+                    for line in f.readlines()
+                    if len(line.strip()) > 5
+                ]
         except FileNotFoundError:
             console.log("Файл groups.txt не найден", style="bold red")
             sys.exit(1)
             return None
-
     @staticmethod
     def read_prompts(file='prompts.txt'):
         prompts = []
