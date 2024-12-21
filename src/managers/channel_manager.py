@@ -98,7 +98,7 @@ class ChannelManager:
                     continue
                 except Exception as e:
                     if "is not valid anymore" in str(e):
-                        console.log("Вы забанены в канале")
+                        console.log(f"Вы забанены в канале {channel}, или такого канала не существует", style="yellow")
                         continue
                     elif "A wait of" in str(e):
                         console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
