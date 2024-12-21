@@ -116,6 +116,7 @@ class ChannelManager:
                     continue
                 else:
                     console.log(f"Ошибка при подписке на канал {channel}: {e}")
+                    continue
                     
     async def monitor_channels(self, client, account_phone):
         for channel in self.channels:
@@ -196,10 +197,13 @@ class ChannelManager:
             if not linked_chat_id:
                 console.log(f"Канал {channel_entity.title} не связан с группой.", style="bold yellow")
                 return
-            
-            linked_group = await client.get_entity(linked_chat_id)
-            console.log(f"Попытка вступить в группу: {linked_group.title}", style="bold cyan")
-            
+            try:
+                linked_group = await client.get_entity(linked_chat_id)
+                console.log(f"Попытка вступить в группу: {linked_group.title}", style="bold cyan")
+            except Exception as e:
+                console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
+                return False
+
             await client(JoinChannelRequest(linked_group))
             console.log(f"Успешно вступили в группу: {linked_group.title}", style="bold green")
 
@@ -209,8 +213,9 @@ class ChannelManager:
             if "You have successfully requested" in str(e):
                 console.log("Запрос на подписку уже отправлен", style="yellow")
                 return False
-            console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
-            return False
+            else:
+                console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
+                return False
 
     async def new_post_handler(self, client, event, prompt_tone, account_phone):
         if account_phone != self.active_account:
