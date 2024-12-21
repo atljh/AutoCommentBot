@@ -201,7 +201,7 @@ class ChannelManager:
                 linked_group = await client.get_entity(linked_chat_id)
                 console.log(f"Попытка вступить в группу: {linked_group.title}", style="bold cyan")
             except Exception as e:
-                console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
+                console.log(f"Ошибка при получении связанной группы: {e}", style="bold red")
                 return False
 
             await client(JoinChannelRequest(linked_group))
