@@ -100,6 +100,9 @@ class ChannelManager:
                     if "is not valid anymore" in str(e):
                         console.log("Вы забанены в канале")
                         continue
+                    elif "A wait of" in str(e):
+                        console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
+                        continue
                     else:
                         console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
                         continue
@@ -108,7 +111,11 @@ class ChannelManager:
                 await client(JoinChannelRequest(channel))
                 console.log(f"Аккаунт присоединился к каналу {channel}")
             except Exception as e:
-                console.log(f"Ошибка при подписке на канал {channel}: {e}")
+                if "A wait of" in str(e):
+                    console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
+                    continue
+                else:
+                    console.log(f"Ошибка при подписке на канал {channel}: {e}")
                     
     async def monitor_channels(self, client, account_phone):
         for channel in self.channels:
