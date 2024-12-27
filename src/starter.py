@@ -37,12 +37,12 @@ class Starter(BaseSession):
                 except Exception as e:
                     console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
                     r = "ERROR_UNKNOWN"
-            if "OK" not in r:
-                console.log(item.name, r, style="red")
             if "ERROR_AUTH" in r:
+                console.log(f"Аккаунт {item.name} разлогинен или забанен", style="red")
                 move_item(item, self.banned_dir, True, True)
                 move_item(json_file, self.banned_dir, True, True)
             if "ERROR_STORY" in r:
+                console.log(f"Ошибка при работе аккаунта {item.name}", style="red")
                 move_item(item, self.errors_dir, True, True)
                 move_item(json_file, self.errors_dir, True, True)
             if "OK" in r:
