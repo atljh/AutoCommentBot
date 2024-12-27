@@ -105,7 +105,7 @@ class ChannelManager:
                     continue
             except InviteHashExpiredError:
                 self.channels.remove(channel)
-                console.log(f"Ссылка не актуальная: {channel}", style="red")
+                console.log(f"Такого канала не существует или ссылка истекла: {channel}", style="red")
             except Exception:
                 try:
                     await self.sleep_before_enter_channel()
