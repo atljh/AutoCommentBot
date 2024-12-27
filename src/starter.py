@@ -46,7 +46,7 @@ class Starter(BaseSession):
                 move_item(item, self.errors_dir, True, True)
                 move_item(json_file, self.errors_dir, True, True)
             if "OK" in r:
-                console.log(f"Аккаунт {item.name} успешно прокомментировал посты.", style="green")
+                console.log(f"Аккаунт {item.name} закончил работу", style="green")
         except Exception as e:
             console.log(f"Ошибка при работе аккаунта {item}: {e}", style="red")
 

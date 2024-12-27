@@ -148,6 +148,9 @@ class ChannelManager:
                     continue
 
     async def monitor_channels(self, client, account_phone):
+        if not self.channels:
+            console.log("Каналы не найдены", style="yellow")
+            return
         for channel in self.channels:
             try:
                 client.add_event_handler(
