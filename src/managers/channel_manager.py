@@ -99,29 +99,25 @@ class ChannelManager:
 
     async def join_channels(self, client, account_phone):
         for channel in self.channels:
-            print(self.channels)
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity):
                     continue
             except InviteHashExpiredError:
                 self.channels.remove(channel)
-                console.log(f"Ссылка \
-                            не актуальная: {channel}", style="red")
+                console.log(f"Ссылка не актуальная: {channel}", style="red")
             except Exception:
                 try:
                     await self.sleep_before_enter_channel()
                     await client(ImportChatInviteRequest(channel[6:]))
                     console.log(
-                        f"Аккаунт {account_phone} \
-                            присоединился к приватному каналу {channel}"
+                        f"Аккаунт {account_phone} присоединился к приватному каналу {channel}"
                     )
                     continue
                 except Exception as e:
                     if "is not valid anymore" in str(e):
                         console.log(
-                            f"Вы забанены в канале {channel},\
-                            или такого канала не существует", style="yellow"
+                            f"Вы забанены в канале {channel}, или такого канала не существует", style="yellow"
                             )
                         continue
                     elif "A wait of" in str(e):
@@ -188,8 +184,7 @@ class ChannelManager:
                 await self.sleep_account(account_phone)
         except FloodWaitError as e:
             logging.warning(
-                f"Слишком много запросов от аккаунта {account_phone}.\
-                    Ожидание {e.seconds} секунд.", style="yellow"
+                f"Превышен лимит запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow"
                 )
             await asyncio.sleep(e.seconds)
             await self.switch_to_next_account()
@@ -202,11 +197,9 @@ class ChannelManager:
             await self.switch_to_next_account()
         except Exception as e:
             if "private and you lack permission" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта\
-                             {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             elif "You can't write" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта\
-                             {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             elif "You join the discussion group before commenting" in str(e):
                 console.log("Для комментирование необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity)
@@ -217,7 +210,7 @@ class ChannelManager:
                     return
             else:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
-            
+
             if attempts < self.MAX_SEND_ATTEMPTS:
                 console.log(f"Попытка {attempts + 1}/{self.MAX_SEND_ATTEMPTS} отправить сообщение c другого аккаунта...")
                 await self.switch_to_next_account()
@@ -233,7 +226,7 @@ class ChannelManager:
     async def join_discussion_group(self, client, channel_entity):
         try:
             full_channel = await client(GetFullChannelRequest(channel=channel_entity))
-            
+
             linked_chat_id = full_channel.full_chat.linked_chat_id
             if not linked_chat_id:
                 console.log(f"Канал {channel_entity.title} не связан с группой.", style="bold yellow")
@@ -249,7 +242,7 @@ class ChannelManager:
             console.log(f"Успешно вступили в группу: {linked_group.title}", style="bold green")
 
             return True
-        
+
         except Exception as e:
             if "You have successfully requested" in str(e):
                 console.log("Запрос на подписку уже отправлен", style="yellow")

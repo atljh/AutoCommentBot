@@ -29,8 +29,10 @@ class Commenter(BaseThon):
         await self.channel_manager.join_channels(
             self.client, self.account_phone
         )
-        console.log(f"Аккаунт {self.account_phone}\
-                     успешно подключен и добавлен в очередь.", style="green")
+        console.log(
+            f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.",
+            style="green"
+        )
         try:
             await self.channel_manager.monitor_channels(
                 self.client, self.account_phone
