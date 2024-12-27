@@ -6,6 +6,7 @@ from src.console import console
 from src.thon import BaseThon
 from src.managers import ChannelManager
 
+
 class Commenter(BaseThon):
     def __init__(
         self,
@@ -25,9 +26,17 @@ class Commenter(BaseThon):
         self.channel_manager.add_account({self.account_phone: self.client})
 
     async def __main(self):
-        await self.channel_manager.join_channels(self.client, self.account_phone)
-        console.log(f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.", style="green")
-        await self.channel_manager.monitor_channels(self.client, self.account_phone)
+        await self.channel_manager.join_channels(
+            self.client, self.account_phone
+        )
+        console.log(f"Аккаунт {self.account_phone}\
+                     успешно подключен и добавлен в очередь.", style="green")
+        try:
+            await self.channel_manager.monitor_channels(
+                self.client, self.account_phone
+            )
+        except Exception as e:
+            console.log(f'Ошибка {e}', style='yellow')
 
     async def _main(self) -> str:
         r = await self.check()

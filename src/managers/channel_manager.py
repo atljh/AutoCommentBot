@@ -7,16 +7,24 @@ from collections import deque
 from openai import OpenAI
 from telethon import events
 from telethon.errors import UserNotParticipantError, FloodWaitError
-from telethon.errors.rpcerrorlist import UserBannedInChannelError, MsgIdInvalidError
-from telethon.tl.functions.channels import JoinChannelRequest, GetFullChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest
+from telethon.errors.rpcerrorlist import (
+    UserBannedInChannelError,
+    MsgIdInvalidError,
+    InviteHashExpiredError
+)
+from telethon.tl.functions.channels import (
+    JoinChannelRequest, GetFullChannelRequest
+)
+from telethon.tl.functions.messages import (
+    ImportChatInviteRequest)
 
 from src.console import console
 from .file_manager import FileManager
 from .comment_manager import CommentManager
 
+
 class ChannelManager:
-    MAX_SEND_ATTEMPTS = 3 
+    MAX_SEND_ATTEMPTS = 3
 
     def __init__(self, config):
         self.config = config
@@ -32,7 +40,7 @@ class ChannelManager:
         self.account_comment_count = {}
         self.accounts = {}
 
-        self.active_account = None 
+        self.active_account = None
         self.account_queue = deque()
         self.stop_event = asyncio.Event()
 
@@ -41,37 +49,42 @@ class ChannelManager:
             self.account_queue.append(account)
         if not self.active_account and self.account_queue:
             self.active_account = self.account_queue.popleft()
-    
+
     def add_account(self, account: dict):
         self.accounts.update(account)
 
     async def switch_to_next_account(self):
         if self.active_account:
-            self.account_queue.append(self.active_account) 
+            self.account_queue.append(self.active_account)
         if self.account_queue:
             self.active_account = self.account_queue.popleft()
-            console.log(f"Смена активного аккаунта на {self.active_account}", style="green")
+            console.log(
+                f"Смена активного аккаунта на {self.active_account}",
+                style="green"
+            )
         else:
             console.log("Все аккаунты завершили работу", style="yellow")
-            self.stop_event.set() 
+            self.stop_event.set()
 
     async def sleep_account(self, account_phone):
         sleep_time = self.sleep_duration
-        console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...", style="yellow")
+        console.log(f"Аккаунт {account_phone} будет в режиме сна\
+                     на {sleep_time} секунд...", style="yellow")
         await asyncio.sleep(sleep_time)
         self.account_comment_count[account_phone] = 0
-        console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.", style="green")
+        console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.",
+                    style="green")
 
     async def is_participant(self, client, channel):
-            try:
-                await client.get_permissions(channel, 'me')
-                return True
-            except UserNotParticipantError:
-                return False
-            except Exception as e:
-                console.log(f"Ошибка при обработке канала {channel}: {e}")
-                return False
-        
+        try:
+            await client.get_permissions(channel, 'me')
+            return True
+        except UserNotParticipantError:
+            return False
+        except Exception as e:
+            console.log(f"Ошибка при обработке канала {channel}: {e}")
+            return False
+
     async def sleep_before_send_message(self):
         min_delay, max_delay = self.send_comment_delay
         delay = random.randint(min_delay, max_delay)
@@ -86,22 +99,39 @@ class ChannelManager:
 
     async def join_channels(self, client, account_phone):
         for channel in self.channels:
+            print(self.channels)
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity):
                     continue
+            except InviteHashExpiredError:
+                self.channels.remove(channel)
+                console.log(f"Ссылка \
+                            не актуальная: {channel}", style="red")
             except Exception:
                 try:
                     await self.sleep_before_enter_channel()
                     await client(ImportChatInviteRequest(channel[6:]))
-                    console.log(f"Аккаунт {account_phone} присоединился к приватному каналу {channel}")
+                    console.log(
+                        f"Аккаунт {account_phone} \
+                            присоединился к приватному каналу {channel}"
+                    )
                     continue
                 except Exception as e:
                     if "is not valid anymore" in str(e):
-                        console.log(f"Вы забанены в канале {channel}, или такого канала не существует", style="yellow")
+                        console.log(
+                            f"Вы забанены в канале {channel},\
+                            или такого канала не существует", style="yellow"
+                            )
                         continue
                     elif "A wait of" in str(e):
-                        console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
+                        console.log(
+                            f"Слишком много запросов \
+                                от аккаунта {account_phone}.\
+                                Ожидание {e.seconds} секунд.", style="yellow"
+                                )
+                        continue
+                    elif "is already" in str(e):
                         continue
                     else:
                         console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
@@ -114,16 +144,22 @@ class ChannelManager:
                 if "A wait of" in str(e):
                     console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
                     continue
+                elif "is not valid" in str(e):
+                    console.log("Ссылка на чат не рабочая или такого чата не существует", style="yellow")
+                    continue
                 else:
                     console.log(f"Ошибка при подписке на канал {channel}: {e}")
                     continue
-                    
+
     async def monitor_channels(self, client, account_phone):
         for channel in self.channels:
-            client.add_event_handler(
-                lambda event: self.new_post_handler(client, event, self.prompt_tone, account_phone),
-                events.NewMessage(chats=channel)
-            )
+            try:
+                client.add_event_handler(
+                    lambda event: self.new_post_handler(client, event, self.prompt_tone, account_phone),
+                    events.NewMessage(chats=channel)
+                )
+            except Exception as e:
+                console.log(f'Ошибка, {e}', style="red")
         console.log(f"Мониторинг каналов начался для аккаунта {account_phone}...")
         await self.stop_event.wait()
 
@@ -151,20 +187,26 @@ class ChannelManager:
                 await self.switch_to_next_account()
                 await self.sleep_account(account_phone)
         except FloodWaitError as e:
-            logging.warning(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
+            logging.warning(
+                f"Слишком много запросов от аккаунта {account_phone}.\
+                    Ожидание {e.seconds} секунд.", style="yellow"
+                )
             await asyncio.sleep(e.seconds)
             await self.switch_to_next_account()
         except UserBannedInChannelError:
-            console.log(f"Аккаунт {account_phone} заблокирован в канале {channel.title}", style="red")
+            console.log(f"Аккаунт {account_phone}\
+                         заблокирован в канале {channel.title}", style="red")
             await self.switch_to_next_account()
         except MsgIdInvalidError:
             console.log("Канал не связан с чатом", style="red")
             await self.switch_to_next_account()
         except Exception as e:
             if "private and you lack permission" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel.title} недоступен для аккаунта\
+                             {account_phone}. Пропускаем.", style="yellow")
             elif "You can't write" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel.title} недоступен для аккаунта\
+                             {account_phone}. Пропускаем.", style="yellow")
             elif "You join the discussion group before commenting" in str(e):
                 console.log("Для комментирование необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity)
@@ -187,7 +229,6 @@ class ChannelManager:
                     console.log("Нет доступных аккаунтов для отправки.", style="red")
             else:
                 console.log(f"Не удалось отправить сообщение после {self.MAX_SEND_ATTEMPTS} попыток.", style="red")
-
 
     async def join_discussion_group(self, client, channel_entity):
         try:

@@ -1,6 +1,7 @@
 import sys
 from src.console import console
 
+
 class FileManager:
     @staticmethod
     def read_channels(file='groups.txt') -> list:
@@ -15,6 +16,7 @@ class FileManager:
             console.log("Файл groups.txt не найден", style="bold red")
             sys.exit(1)
             return None
+
     @staticmethod
     def read_prompts(file='prompts.txt'):
         prompts = []
