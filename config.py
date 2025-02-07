@@ -3,6 +3,7 @@ import yaml
 from typing import Tuple
 from pydantic import BaseModel, Field, field_validator
 from src.logger import logger
+from src.console import console
 
 class Config(BaseModel):
     openai_api_key: str
@@ -40,6 +41,10 @@ class ConfigManager:
                     min_delay, max_delay = map(int, send_message_delay.split('-'))
                     config_data['settings']['send_message_delay'] = (min_delay, max_delay)
                 return Config(**config_data['api'], **config_data['settings'])
+        except FileNotFoundError:
+            console.log(f"Файл config.yaml не найден", style="red")
+            sys.exit(1)
         except Exception as e:
             logger.error(f"Ошибка загрузки конфигурации: {e}")
+            console.log(f"Ошибка загрузки конфигурации: {e}", style="red")
             sys.exit(1)
