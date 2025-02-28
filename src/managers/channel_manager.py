@@ -106,6 +106,7 @@ class ChannelManager:
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity, account_phone):
+                    channels.append(channel)
                     continue
             except InviteHashExpiredError:
                 console.log(f"Такого канала не существует или ссылка истекла: {channel}", style="red")
@@ -163,12 +164,11 @@ class ChannelManager:
         if not channels:
             console.log("Каналы не найдены", style="yellow")
             return
-        for channel in channels:
+        for channel in self.channels:
             try:
                 client.add_event_handler(
                     lambda event: self.new_post_handler(
-                        client, event,
-                        self.prompt_tone, account_phone
+                        client, event, self.prompt_tone, account_phone
                     ),
                     events.NewMessage(chats=channel)
                 )
@@ -274,8 +274,16 @@ class ChannelManager:
             return
 
         post_text = event.message.message
+
         message_id = event.message.id
         channel = event.chat
+
+        if event.message.grouped_id and not len(post_text):
+            return
+
+        if not len(post_text):
+            console.log("У поста нет текста, пропускаем", style="yellow")
+            return
 
         console.log(f"Новый пост в канале {channel.title} для аккаунта {account_phone}", style="green")
 
@@ -283,7 +291,7 @@ class ChannelManager:
             await self.switch_to_next_account()
             await self.sleep_account(account_phone)
             return
-  
+
         comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
         if not comment:
             return
