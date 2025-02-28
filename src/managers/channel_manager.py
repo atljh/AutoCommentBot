@@ -68,21 +68,23 @@ class ChannelManager:
 
     async def sleep_account(self, account_phone):
         sleep_time = self.sleep_duration
-        console.log(f"Аккаунт {account_phone} будет в режиме сна\
-                     на {sleep_time} секунд...", style="yellow")
+        console.log(f"Аккаунт {account_phone} будет в режиме сна на {sleep_time} секунд...", style="yellow")
         await asyncio.sleep(sleep_time)
         self.account_comment_count[account_phone] = 0
         console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.",
                     style="green")
 
-    async def is_participant(self, client, channel):
+    async def is_participant(self, client, channel, account_phone):
         try:
             await client.get_permissions(channel, 'me')
             return True
         except UserNotParticipantError:
             return False
         except Exception as e:
-            console.log(f"Ошибка при обработке канала {channel}: {e}")
+            if "private and you lack permission" in str(e):
+                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+            else:
+                console.log(f"Ошибка при обработке канала {channel}: {e}")
             return False
 
     async def sleep_before_send_message(self):
@@ -101,7 +103,7 @@ class ChannelManager:
         for channel in self.channels:
             try:
                 entity = await client.get_entity(channel)
-                if await self.is_participant(client, entity):
+                if await self.is_participant(client, entity, account_phone):
                     continue
             except InviteHashExpiredError:
                 self.channels.remove(channel)
@@ -268,7 +270,7 @@ class ChannelManager:
             await self.switch_to_next_account()
             await self.sleep_account(account_phone)
             return
-        
+  
         comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
         if not comment:
             return
