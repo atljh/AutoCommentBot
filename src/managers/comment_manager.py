@@ -23,17 +23,17 @@ class CommentManager:
         except Exception as e:
             console.log(f"Ошибка определения языка: {e}")
             return "ru"
-        
+
     async def generate_prompt(self, post_text, prompt_tone):
 
         if not len(self.prompts):
             console.log("Промпт не найден")
             return None
-       
+
         random_prompt = bool(self.config.random_prompt)
         prompt = random.choice(self.prompts) if random_prompt else self.prompts[0] if self.prompts else None
         post_language = self.detect_language(post_text)
-        
+
         prompt = prompt.replace("{post_text}", post_text)
         prompt = prompt.replace("{prompt_tone}", prompt_tone)
         if self.config.detect_language:
@@ -57,12 +57,24 @@ class CommentManager:
                 temperature=0.7)
             comment = response.choices[0].message.content
             return comment
-        except openai.AuthenticationError as e:
-            console.log(f"Ошибка авторизации: неверный API ключ", style="red")
-        except openai.RateLimitError as e:
-            console.log(f"Не хватает денег на балансе ChatGPT", style="red")
-        except openai.PermissionDeniedError as e:
-            console.log("В вашей стране не работает ChatGPT, включите VPN", style="red")
+        except openai.AuthenticationError:
+            console.log(
+                "Ошибка авторизации: неверный API ключ",
+                style="red"
+            )
+        except openai.RateLimitError:
+            console.log(
+                "Не хватает денег на балансе ChatGPT",
+                style="red"
+            )
+        except openai.PermissionDeniedError:
+            console.log(
+                "В вашей стране не работает ChatGPT, включите VPN",
+                style="red"
+            )
         except Exception as e:
-            console.log(f"Ошибка генерации комментария: {e}", style="red")
+            console.log(
+                f"Ошибка генерации комментария: {e}",
+                style="red"
+            )
             return None
