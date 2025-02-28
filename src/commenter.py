@@ -26,7 +26,7 @@ class Commenter(BaseThon):
         self.channel_manager.add_account({self.account_phone: self.client})
 
     async def __main(self):
-        await self.channel_manager.join_channels(
+        channels = await self.channel_manager.join_channels(
             self.client, self.account_phone
         )
         console.log(
@@ -35,7 +35,7 @@ class Commenter(BaseThon):
         )
         try:
             await self.channel_manager.monitor_channels(
-                self.client, self.account_phone
+                self.client, self.account_phone, channels
             )
         except Exception as e:
             console.log(f'Ошибка {e}', style='yellow')

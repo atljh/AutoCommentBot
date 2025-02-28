@@ -6,6 +6,7 @@ from collections import deque
 
 from openai import OpenAI
 from telethon import events
+from telethon import TelegramClient
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import (
     UserBannedInChannelError,
@@ -99,15 +100,16 @@ class ChannelManager:
         console.log(f"Задержка перед подпиской на канал {delay} сек")
         await asyncio.sleep(delay)
 
-    async def join_channels(self, client, account_phone):
+    async def join_channels(self, client, account_phone) -> List[str]:
+        channels = []
         for channel in self.channels:
             try:
                 entity = await client.get_entity(channel)
                 if await self.is_participant(client, entity, account_phone):
                     continue
             except InviteHashExpiredError:
-                self.channels.remove(channel)
                 console.log(f"Такого канала не существует или ссылка истекла: {channel}", style="red")
+                continue
             except Exception:
                 try:
                     await self.sleep_before_enter_channel()
@@ -115,6 +117,7 @@ class ChannelManager:
                     console.log(
                         f"Аккаунт {account_phone} присоединился к приватному каналу {channel}"
                     )
+                    channels.append(channel)
                     continue
                 except Exception as e:
                     if "is not valid anymore" in str(e):
@@ -138,6 +141,7 @@ class ChannelManager:
                 await self.sleep_before_enter_channel()
                 await client(JoinChannelRequest(channel))
                 console.log(f"Аккаунт присоединился к каналу {channel}")
+                channels.append(channel)
             except Exception as e:
                 if "A wait of" in str(e):
                     console.log(f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow")
@@ -148,15 +152,24 @@ class ChannelManager:
                 else:
                     console.log(f"Ошибка при подписке на канал {channel}: {e}")
                     continue
+        return channels
 
-    async def monitor_channels(self, client, account_phone):
-        if not self.channels:
+    async def monitor_channels(
+            self,
+            client: TelegramClient,
+            account_phone: str,
+            channels: List[str]
+            ) -> None:
+        if not channels:
             console.log("Каналы не найдены", style="yellow")
             return
-        for channel in self.channels:
+        for channel in channels:
             try:
                 client.add_event_handler(
-                    lambda event: self.new_post_handler(client, event, self.prompt_tone, account_phone),
+                    lambda event: self.new_post_handler(
+                        client, event,
+                        self.prompt_tone, account_phone
+                    ),
                     events.NewMessage(chats=channel)
                 )
             except Exception as e:

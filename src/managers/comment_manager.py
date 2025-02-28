@@ -6,6 +6,7 @@ from langdetect import detect
 from src.console import console
 from .file_manager import FileManager
 
+
 class CommentManager:
     def __init__(self, config, openai_client):
         self.config = config
@@ -21,14 +22,14 @@ class CommentManager:
             return language
         except Exception as e:
             console.log(f"Ошибка определения языка: {e}")
-            return "ru" 
+            return "ru"
         
     async def generate_prompt(self, post_text, prompt_tone):
 
         if not len(self.prompts):
             console.log("Промпт не найден")
             return None
-        
+       
         random_prompt = bool(self.config.random_prompt)
         prompt = random.choice(self.prompts) if random_prompt else self.prompts[0] if self.prompts else None
         post_language = self.detect_language(post_text)
