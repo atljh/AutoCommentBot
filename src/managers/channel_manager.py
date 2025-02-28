@@ -3,10 +3,12 @@ import asyncio
 import logging
 from typing import List
 from collections import deque
+from functools import partial
 
 from openai import OpenAI
 from telethon import events
 from telethon import TelegramClient
+from telethon.tl.types import Channel
 from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import (
     UserBannedInChannelError,
@@ -83,7 +85,7 @@ class ChannelManager:
             return False
         except Exception as e:
             if "private and you lack permission" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             else:
                 console.log(f"Ошибка при обработке канала {channel}: {e}")
             return False
@@ -155,6 +157,9 @@ class ChannelManager:
                     continue
         return channels
 
+    async def event_handler(self, client, event, prompt_tone, account_phone, channel):
+        await self.new_post_handler(client, event, prompt_tone, account_phone, channel)
+
     async def monitor_channels(
             self,
             client: TelegramClient,
@@ -164,12 +169,10 @@ class ChannelManager:
         if not channels:
             console.log("Каналы не найдены", style="yellow")
             return
-        for channel in self.channels:
+        for channel in channels:
             try:
                 client.add_event_handler(
-                    lambda event: self.new_post_handler(
-                        client, event, self.prompt_tone, account_phone
-                    ),
+                    partial(self.event_handler, client, prompt_tone=self.prompt_tone, account_phone=account_phone, channel=channel),
                     events.NewMessage(chats=channel)
                 )
             except Exception as e:
@@ -184,7 +187,16 @@ class ChannelManager:
             console.log(f"Ошибка получения объекта канала: {e}", style="red")
             return None
 
-    async def send_comment(self, client, account_phone, channel, comment, message_id, attempts=0):
+    async def send_comment(
+        self,
+        client: TelegramClient,
+        account_phone: str,
+        channel: Channel,
+        comment: str,
+        message_id: int,
+        channel_link: str,
+        attempts=0
+    ) -> None:
         try:
             channel_entity = await self.get_channel_entity(client, channel)
             if not channel_entity:
@@ -195,7 +207,7 @@ class ChannelManager:
                 message=comment,
                 comment_to=message_id
             )
-            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel.title}", style="green")
+            console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel_link}", style="green")
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
             if self.account_comment_count[account_phone] >= self.comment_limit:
                 await self.switch_to_next_account()
@@ -207,20 +219,19 @@ class ChannelManager:
             await asyncio.sleep(e.seconds)
             await self.switch_to_next_account()
         except UserBannedInChannelError:
-            console.log(f"Аккаунт {account_phone}\
-                         заблокирован в канале {channel.title}", style="red")
+            console.log(f"Аккаунт {account_phone} заблокирован в канале {channel_link}", style="red")
             await self.switch_to_next_account()
         except MsgIdInvalidError:
             console.log("Канал не связан с чатом", style="red")
             await self.switch_to_next_account()
         except Exception as e:
             if "private and you lack permission" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             elif "You can't write" in str(e):
-                console.log(f"Канал {channel.title} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             elif "You join the discussion group before commenting" in str(e):
                 console.log("Для комментирование необходимо вступить в группу.")
-                join_result = await self.join_discussion_group(client, channel_entity)
+                join_result = await self.join_discussion_group(client, channel_entity, channel_link)
                 if join_result:
                     await self.send_comment(client, account_phone, channel, comment, message_id)
                     return
@@ -241,13 +252,18 @@ class ChannelManager:
             else:
                 console.log(f"Не удалось отправить сообщение после {self.MAX_SEND_ATTEMPTS} попыток.", style="red")
 
-    async def join_discussion_group(self, client, channel_entity):
+    async def join_discussion_group(
+        self,
+        client: TelegramClient,
+        channel_entity: Channel,
+        channel_link: str
+    ) -> bool:
         try:
             full_channel = await client(GetFullChannelRequest(channel=channel_entity))
 
             linked_chat_id = full_channel.full_chat.linked_chat_id
             if not linked_chat_id:
-                console.log(f"Канал {channel_entity.title} не связан с группой.", style="bold yellow")
+                console.log(f"Канал {channel_link} не связан с группой.", style="bold yellow")
                 return
             try:
                 linked_group = await client.get_entity(linked_chat_id)
@@ -269,7 +285,14 @@ class ChannelManager:
                 console.log(f"Ошибка при попытке вступления в группу: {e}", style="bold red")
                 return False
 
-    async def new_post_handler(self, client, event, prompt_tone, account_phone):
+    async def new_post_handler(
+        self,
+        client: TelegramClient,
+        event: events.NewMessage.Event,
+        prompt_tone: str,
+        account_phone: str,
+        channel_link: str
+    ) -> None:
         if account_phone != self.active_account:
             return
 
@@ -285,16 +308,20 @@ class ChannelManager:
             console.log("У поста нет текста, пропускаем", style="yellow")
             return
 
-        console.log(f"Новый пост в канале {channel.title} для аккаунта {account_phone}", style="green")
+        console.log(f"Новый пост в канале {channel_link} для аккаунта {account_phone}", style="green")
 
         if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
             await self.switch_to_next_account()
             await self.sleep_account(account_phone)
             return
 
-        comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
+        comment = await self.comment_manager.generate_comment(
+            post_text, prompt_tone
+        )
         if not comment:
             return
 
         await self.sleep_before_send_message()
-        await self.send_comment(client, account_phone, channel, comment, message_id)
+        await self.send_comment(
+            client, account_phone, channel, comment, message_id, channel_link
+        )
