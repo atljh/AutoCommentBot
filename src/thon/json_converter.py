@@ -18,8 +18,7 @@ class JsonConverter(BaseSession):
     def __init__(self):
         super().__init__()
         self.__api_id, self.__api_hash = 2040, "b18441a1ff607e10a989891a5462e627"
-        prompt = "Введите прокси (формат socks5:ipaddr:port:user:pswd)"
-        proxy = ask_from_history(prompt, console, Path("history_proxies.json"))
+        proxy = ''
         if proxy == 'Без прокси':
             self.__proxy = None
             return
@@ -55,7 +54,7 @@ class JsonConverter(BaseSession):
         except requests.exceptions.RequestException as e:
             console.log(f"Ошибка при проверке прокси {e}")
             return False
-        
+
     def _main(self, item: Path, json_file: Path, json_data: dict):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

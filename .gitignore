@@ -2,11 +2,10 @@
 .vscode
 venv   
 logs.log
-/proxies.txt
-/config.yaml
-/groups.txt
+*.txt
 __pycache__
 poetry.lock
 history_proxies.json
 /logs
 dist
+config.yaml
