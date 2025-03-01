@@ -31,3 +31,17 @@ class FileManager:
             console.log("Файл prompts.txt не найден", style="bold red")
             sys.exit(1)
             return []
+
+    @staticmethod
+    def read_proxy(file='proxy.txt') -> list:
+        try:
+            with open(file, 'r', encoding='utf-8') as f:
+                return [
+                    line.strip().replace(" ", "").replace("https://", "")
+                    for line in f.readlines()
+                    if len(line.strip()) > 5
+                ]
+        except FileNotFoundError:
+            console.log("Файл groups.txt не найден", style="bold red")
+            sys.exit(1)
+            return None
