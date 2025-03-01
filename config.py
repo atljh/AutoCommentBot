@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.logger import logger
 from src.console import console
 
+
 class Config(BaseModel):
     openai_api_key: str
     chat_gpt_model: str
@@ -15,13 +16,15 @@ class Config(BaseModel):
     send_message_delay: Tuple[int, int] = Field(default=(10, 20), description="Задержка перед отправкой сообщения")
     random_prompt: bool = Field(default=False, description="Использовать рандомные пользовательские промпты")
     detect_language: bool = Field(default=False, description="Определять язык поста")
-    
+    accounts_per_proxy: int = Field(default=1, description="Аккаунтов на одни прокси")
+
     @field_validator('openai_api_key')
     def validate_openai_api_key(cls, value):
         if not value:
             logger.error("openai_api_key не найден")
             sys.exit(0)
         return value
+
 
 class ConfigManager:
     @staticmethod

@@ -13,4 +13,4 @@ settings:
   send_message_delay: 15-30 # Диапазон задержки перед отправкой сообщения
   random_prompt: false # Выбор случайного пользовательского промпта (true/false)
   detect_language: true # Определять язык поста (true/false)
-  accounts_per_proxy: 5
+  accounts_per_proxy: 5 # Аккаунтов на одни прокси
