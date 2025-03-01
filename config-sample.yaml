@@ -2,7 +2,7 @@
 api:
   # Ключ API OpenAI
   openai_api_key: ""
-  chat_gpt_model: "gpt-3.5-turbo" # Модель чата гпт
+  chat_gpt_model: "gpt-4o-mini" # Модель чата гпт
 
 # Настройки работы бота (опционально, можно изменить для персонализации)
 settings:
@@ -13,3 +13,4 @@ settings:
   send_message_delay: 15-30 # Диапазон задержки перед отправкой сообщения
   random_prompt: false # Выбор случайного пользовательского промпта (true/false)
   detect_language: true # Определять язык поста (true/false)
+  accounts_per_proxy: 5
