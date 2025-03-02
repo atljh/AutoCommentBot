@@ -1,6 +1,8 @@
 import sys
 import asyncio
 import requests
+import itertools
+from typing import List
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -11,7 +13,6 @@ from tooler import ProxyParser
 
 from src.console import console
 from src.thon.base_session import BaseSession
-from scripts.ask_from_history import ask_from_history
 
 
 class JsonConverter(BaseSession):
@@ -70,6 +71,17 @@ class JsonConverter(BaseSession):
         json_data["proxy"] = self.__proxy
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
+
+    def distribute_proxies(self, accounts: int, proxies: List[str], accounts_per_proxy: int):
+        proxy_cycle = itertools.cycle(proxies)
+        distribution = {}
+
+        for i in range(1, accounts + 1):
+            proxy_index = (i - 1) // accounts_per_proxy
+            proxy = proxies[proxy_index] if proxy_index < len(proxies) else proxies[-1]
+            distribution[i] = proxy
+
+        return distribution
 
     def main(self) -> int:
         count = 0
