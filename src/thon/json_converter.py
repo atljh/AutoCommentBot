@@ -72,7 +72,8 @@ class JsonConverter(BaseSession):
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
-    def distribute_proxies(self, accounts: int, proxies: List[str], accounts_per_proxy: int):
+    def distribute_proxies(self, proxies: List[str], accounts_per_proxy: int):
+        accounts = len(list(self.find_sessions()))
         proxy_cycle = itertools.cycle(proxies)
         distribution = {}
 

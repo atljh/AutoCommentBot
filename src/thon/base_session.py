@@ -4,6 +4,7 @@ from typing import Generator
 from jsoner import json_read_sync
 from src.console import console
 
+
 class BaseSession:
     def __init__(self):
         self.base_dir = Path("accounts")
