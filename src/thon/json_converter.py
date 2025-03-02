@@ -1,7 +1,6 @@
 import sys
 import asyncio
 import requests
-import itertools
 from typing import List
 from pathlib import Path
 
@@ -72,25 +71,20 @@ class JsonConverter(BaseSession):
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
-    def distribute_proxies(self, proxies: List[str], accounts_per_proxy: int):
+    def main(self, proxies: List[str], accounts_per_proxy: int) -> int:
         accounts = len(list(self.find_sessions()))
-        proxy_cycle = itertools.cycle(proxies)
         distribution = {}
 
-        for i in range(1, accounts + 1):
+        for i, (item, json_file, json_data) in enumerate(self.find_sessions(), start=1):
             proxy_index = (i - 1) // accounts_per_proxy
             proxy = proxies[proxy_index] if proxy_index < len(proxies) else proxies[-1]
             distribution[i] = proxy
-
-        return distribution
-
-    def main(self) -> int:
-        count = 0
-        for item, json_file, json_data in self.find_sessions():
-            proxy = 'dc.smartproxy.com:10001:spl0zpgltp:mo3kFr3_pBOfg6lQg2'
             self._main(item, json_file, json_data, proxy)
-            count += 1
-        if not count:
+
+        print(distribution)
+
+        if not accounts:
             console.log("Нет аккаунтов в папке с сессиями!", style="yellow")
             sys.exit(1)
-        return count
+
+        return accounts

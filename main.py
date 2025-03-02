@@ -12,8 +12,8 @@ from scripts.authorization import register_user  # noqa
 def main():
     config = ConfigManager.load_config()
     proxy_list = FileManager.read_proxy()
-
-    sessions_count = JsonConverter().main()
+    acc_per_proxy = config.accounts_per_proxy
+    sessions_count = JsonConverter().main(proxy_list, acc_per_proxy)
     s = Starter(sessions_count, config)
     asyncio.run(s.main())
 
