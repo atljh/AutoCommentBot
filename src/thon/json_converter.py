@@ -19,25 +19,25 @@ class JsonConverter(BaseSession):
     def __init__(self):
         super().__init__()
         self.__api_id, self.__api_hash = 2040, "b18441a1ff607e10a989891a5462e627"
-        proxy = ''
-        if proxy == 'Без прокси':
-            self.__proxy = None
-            return
-        try:
-            proxy_parts = proxy.strip().split(':')[1:]
-            if len(proxy_parts) == 4:
-                ip, port, username, password = proxy_parts
-                self.__proxy = ProxyParser(proxy).asdict_thon
-                if not self.check_proxy(ip, port, username, password):
-                    console.log("Прокси не работает, продолжаем без прокси", style="red")
-                    self.__proxy = None
-                    return
-            else:
-                raise ValueError("Неправильный формат прокси, продолжаем без него")
-        except Exception as e:
-            console.log(e, style="red")
-            self.__proxy = None
-            return
+        # proxy = ''
+        # if proxy == 'Без прокси':
+        #     self.__proxy = None
+        #     return
+        # try:
+        #     proxy_parts = proxy.strip().split(':')[1:]
+        #     if len(proxy_parts) == 4:
+        #         ip, port, username, password = proxy_parts
+        #         self.__proxy = ProxyParser(proxy).asdict_thon
+        #         if not self.check_proxy(ip, port, username, password):
+        #             console.log("Прокси не работает, продолжаем без прокси", style="red")
+        #             self.__proxy = None
+        #             return
+        #     else:
+        #         raise ValueError("Неправильный формат прокси, продолжаем без него")
+        # except Exception as e:
+        #     console.log(e, style="red")
+        #     self.__proxy = None
+        #     return
 
     def check_proxy(self, ip, port, username, password):
         proxies = {
@@ -56,7 +56,7 @@ class JsonConverter(BaseSession):
             console.log(f"Ошибка при проверке прокси {e}")
             return False
 
-    def _main(self, item: Path, json_file: Path, json_data: dict):
+    def _main(self, item: Path, json_file: Path, json_data: dict, proxy: str):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         client = TelegramClient(str(item), self.__api_id, self.__api_hash)
@@ -68,7 +68,7 @@ class JsonConverter(BaseSession):
         ss._port = client.session.port  # type: ignore
         string_session = ss.save()
         del ss, client
-        json_data["proxy"] = self.__proxy
+        json_data["proxy"] = proxy
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
@@ -87,7 +87,8 @@ class JsonConverter(BaseSession):
     def main(self) -> int:
         count = 0
         for item, json_file, json_data in self.find_sessions():
-            self._main(item, json_file, json_data)
+            proxy = 'dc.smartproxy.com:10001:spl0zpgltp:mo3kFr3_pBOfg6lQg2'
+            self._main(item, json_file, json_data, proxy)
             count += 1
         if not count:
             console.log("Нет аккаунтов в папке с сессиями!", style="yellow")
