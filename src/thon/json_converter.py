@@ -2,7 +2,7 @@ import re
 import sys
 import asyncio
 import requests
-from typing import List, Dict
+from typing import Tuple, Optional, List
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -56,14 +56,20 @@ class JsonConverter(BaseSession):
             console.log(f"Ошибка при проверке прокси {e}")
             return False
 
-    def handle_proxy(self, proxy: str) -> Dict[str, str]:
+    def handle_proxy(self, proxy: str) -> Optional[Tuple[str, str, Optional[str], Optional[str]]]:
         pattern = r"socks5://(?:(?P<username>[^:]+):(?P<password>[^@]+)@)?(?P<ip>[\d\.]+):(?P<port>\d+)"
         match = re.match(pattern, proxy)
 
         if not match:
-            raise ValueError("Invalid SOCKS5 proxy format")
+            print("Прокси должны быть в формате 'socks5://username:password@ip:port', продолжаем без них")
+            return None
 
-        return {key: value for key, value in match.groupdict().items() if value}
+        ip = match.group("ip")
+        port = match.group("port")
+        username = match.group("username") or ""
+        password = match.group("password") or ""
+
+        return f"{ip}:{port}:{username}:{password}"
 
     def _main(self, item: Path, json_file: Path, json_data: dict, proxy: str = None):
         loop = asyncio.new_event_loop()
@@ -77,11 +83,19 @@ class JsonConverter(BaseSession):
         ss._port = client.session.port  # type: ignore
         string_session = ss.save()
         del ss, client
-        if proxy:
+        if not proxy:
+            json_data["proxy"] = None
+
+        else:
             proxy_parsed = self.handle_proxy(proxy)
             print(proxy_parsed)
-        else:
-            json_data["proxy"] = None
+            if not proxy_parsed:
+                json_data["proxy"] = None
+            else:
+                proxy_parts = ProxyParser(proxy).asdict_thon
+                print(proxy_parts)
+                json_data["proxy"] = proxy_parsed
+                # json_data["proxy"] = proxy_parsed
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
