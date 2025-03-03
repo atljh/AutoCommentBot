@@ -1,7 +1,8 @@
+import re
 import sys
 import asyncio
 import requests
-from typing import List
+from typing import List, Dict
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -55,7 +56,16 @@ class JsonConverter(BaseSession):
             console.log(f"Ошибка при проверке прокси {e}")
             return False
 
-    def _main(self, item: Path, json_file: Path, json_data: dict, proxy: str):
+    def handle_proxy(self, proxy: str) -> Dict[str, str]:
+        pattern = r"socks5://(?:(?P<username>[^:]+):(?P<password>[^@]+)@)?(?P<ip>[\d\.]+):(?P<port>\d+)"
+        match = re.match(pattern, proxy)
+
+        if not match:
+            raise ValueError("Invalid SOCKS5 proxy format")
+
+        return {key: value for key, value in match.groupdict().items() if value}
+
+    def _main(self, item: Path, json_file: Path, json_data: dict, proxy: str = None):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         client = TelegramClient(str(item), self.__api_id, self.__api_hash)
@@ -67,7 +77,11 @@ class JsonConverter(BaseSession):
         ss._port = client.session.port  # type: ignore
         string_session = ss.save()
         del ss, client
-        json_data["proxy"] = proxy
+        if proxy:
+            proxy_parsed = self.handle_proxy(proxy)
+            print(proxy_parsed)
+        else:
+            json_data["proxy"] = None
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
@@ -77,8 +91,11 @@ class JsonConverter(BaseSession):
 
         for i, (item, json_file, json_data) in enumerate(self.find_sessions(), start=1):
             proxy_index = (i - 1) // accounts_per_proxy
-            proxy = proxies[proxy_index] if proxy_index < len(proxies) else proxies[-1]
-            distribution[i] = proxy
+            if len(proxies):
+                proxy = proxies[proxy_index] if proxy_index < len(proxies) else proxies[-1]
+                distribution[i] = proxy
+            else:
+                proxy = None
             self._main(item, json_file, json_data, proxy)
 
         print(distribution)
