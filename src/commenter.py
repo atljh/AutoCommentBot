@@ -42,7 +42,6 @@ class Commenter(BaseThon):
 
     async def _main(self) -> str:
         r = await self.check()
-        print(r)
         if "OK" not in r:
             return r
         await self.__main()

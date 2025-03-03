@@ -109,8 +109,6 @@ class JsonConverter(BaseSession):
                 proxy = None
             self._main(item, json_file, json_data, proxy)
 
-        print(distribution)
-
         if not accounts:
             console.log("Нет аккаунтов в папке с сессиями!", style="yellow")
             sys.exit(1)
