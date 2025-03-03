@@ -69,7 +69,7 @@ class JsonConverter(BaseSession):
         username = match.group("username") or ""
         password = match.group("password") or ""
 
-        return f"{ip}:{port}:{username}:{password}"
+        return f"socks5:{ip}:{port}:{username}:{password}"
 
     def _main(self, item: Path, json_file: Path, json_data: dict, proxy: str = None):
         loop = asyncio.new_event_loop()
@@ -88,14 +88,11 @@ class JsonConverter(BaseSession):
 
         else:
             proxy_parsed = self.handle_proxy(proxy)
-            print(proxy_parsed)
             if not proxy_parsed:
                 json_data["proxy"] = None
             else:
-                proxy_parts = ProxyParser(proxy).asdict_thon
-                print(proxy_parts)
-                json_data["proxy"] = proxy_parsed
-                # json_data["proxy"] = proxy_parsed
+                proxy_parts = ProxyParser(proxy_parsed).asdict_thon
+                json_data["proxy"] = proxy_parts
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 

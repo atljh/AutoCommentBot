@@ -15,7 +15,6 @@ def main():
     acc_per_proxy = config.accounts_per_proxy
     sessions_count = JsonConverter().main(proxy_list, acc_per_proxy)
     s = Starter(sessions_count, config)
-    return
     asyncio.run(s.main())
 
 
