@@ -1,3 +1,4 @@
+import os
 import sys
 from src.console import console
 from typing import List, Dict
@@ -76,7 +77,11 @@ class FileManager:
         return blacklist
 
     @staticmethod
-    def add_to_blacklist(account_phone: str, group: str, file: str = 'blacklist.txt') -> bool:
+    def add_to_blacklist(
+        account_phone: str,
+        group: str,
+        file: str = 'blacklist.txt'
+    ) -> bool:
         """
         Adds a group to the blacklist for a specific account.
 
