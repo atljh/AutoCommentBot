@@ -99,7 +99,15 @@ class FileManager:
             return False
 
     @staticmethod
-    def save_comment_count(comments_count):
+    def save_comment_count(account_phone):
+        try:
+            with open("comment_count.json", "r") as file:
+                comments_count = json.load(file)
+        except FileNotFoundError:
+            comments_count = {}
+
+        comments_count[account_phone] = comments_count.get(account_phone, 0) + 1
+
         with open("comment_count.json", "w") as file:
             json.dump(comments_count, file)
 
