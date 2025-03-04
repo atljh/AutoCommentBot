@@ -13,10 +13,11 @@ from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import (
     UserBannedInChannelError,
     MsgIdInvalidError,
-    InviteHashExpiredError
+    InviteHashExpiredError,
+    UserNotParticipantError
 )
 from telethon.tl.functions.channels import (
-    JoinChannelRequest, GetFullChannelRequest
+    JoinChannelRequest, GetFullChannelRequest, LeaveChannelRequest
 )
 from telethon.tl.functions.messages import (
     ImportChatInviteRequest)
@@ -24,6 +25,8 @@ from telethon.tl.functions.messages import (
 from src.console import console
 from .file_manager import FileManager
 from .comment_manager import CommentManager
+from .blacklist import BlackList
+
 
 
 class ChannelManager:
@@ -39,7 +42,7 @@ class ChannelManager:
         self.channels = FileManager.read_channels()
         self.openai_client = OpenAI(api_key=config.openai_api_key)
         self.comment_manager = CommentManager(config, self.openai_client)
-
+        self.blacklist = BlackList()
         self.account_comment_count = {}
         self.accounts = {}
 
@@ -77,7 +80,7 @@ class ChannelManager:
         console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.",
                     style="green")
 
-    async def is_participant(self, client, channel, account_phone):
+    async def is_participant(self, client, channel, account_phone, channel_link):
         try:
             await client.get_permissions(channel, 'me')
             return True
@@ -85,6 +88,7 @@ class ChannelManager:
             return False
         except Exception as e:
             if "private and you lack permission" in str(e):
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
             else:
                 console.log(f"Ошибка при обработке канала {channel}: {e}")
@@ -105,9 +109,17 @@ class ChannelManager:
     async def join_channels(self, client, account_phone) -> List[str]:
         channels = []
         for channel in self.channels:
+            if self.blacklist.is_group_blacklisted(
+                account_phone, channel
+            ):
+                console.log(
+                    f"Канал {channel} в черном списке аккаунта {account_phone}. Пропускаем",
+                    style="yellow"
+                )
+                continue
             try:
                 entity = await client.get_entity(channel)
-                if await self.is_participant(client, entity, account_phone):
+                if await self.is_participant(client, entity, account_phone, channel):
                     channels.append(channel)
                     continue
             except InviteHashExpiredError:
@@ -152,6 +164,9 @@ class ChannelManager:
                 elif "is not valid" in str(e):
                     console.log("Ссылка на чат не рабочая или такого чата не существует", style="yellow")
                     continue
+                elif "you were banned" in str(e):
+                    console.log(f"Аккаунт {account_phone} забанен в канале {channel}, добавляем в черный список")
+                    self.blacklist.add_to_blacklist(account_phone, channel)
                 else:
                     console.log(f"Ошибка при подписке на канал {channel}: {e}")
                     continue
@@ -198,6 +213,11 @@ class ChannelManager:
         attempts=0
     ) -> None:
         try:
+            if self.blacklist.is_group_blacklisted(
+                account_phone, channel_link
+            ):
+                console.log(f"{channel_link} в черном списке аккаунта {account_phone}, пропускаем")
+                return
             channel_entity = await self.get_channel_entity(client, channel)
             if not channel_entity:
                 console.log("Канал не найден или недоступен.", style="red")
@@ -209,6 +229,7 @@ class ChannelManager:
             )
             console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel_link}", style="green")
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
+            console.log(f"Аккаунт {account_phone} отправил {self.account_comment_count[account_phone]} сообщений.", style="blue")
             if self.account_comment_count[account_phone] >= self.comment_limit:
                 await self.switch_to_next_account()
                 await self.sleep_account(account_phone)
@@ -220,6 +241,8 @@ class ChannelManager:
             await self.switch_to_next_account()
         except UserBannedInChannelError:
             console.log(f"Аккаунт {account_phone} заблокирован в канале {channel_link}", style="red")
+            self.blacklist.add_to_blacklist(account_phone, channel_link)
+            await client(LeaveChannelRequest(channel))
             await self.switch_to_next_account()
         except MsgIdInvalidError:
             console.log("Канал не связан с чатом", style="red")
@@ -227,8 +250,12 @@ class ChannelManager:
         except Exception as e:
             if "private and you lack permission" in str(e):
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
+                await client(LeaveChannelRequest(channel))
             elif "You can't write" in str(e):
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
+                await client(LeaveChannelRequest(channel))
             elif "You join the discussion group before commenting" in str(e):
                 console.log("Для комментирование необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity, channel_link)
@@ -246,7 +273,10 @@ class ChannelManager:
                 next_client = self.accounts.get(self.active_account)
                 if next_client:
                     await self.sleep_before_send_message()
-                    await self.send_comment(next_client, account_phone, channel, comment, message_id, attempts + 1)
+                    await self.send_comment(
+                        next_client, account_phone, channel,
+                        comment, message_id, channel_link, attempts + 1
+                    )
                 else:
                     console.log("Нет доступных аккаунтов для отправки.", style="red")
             else:

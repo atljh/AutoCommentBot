@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from src.managers import FileManager
+from .file_manager import FileManager
 
 
 class BlackList:
