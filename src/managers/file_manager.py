@@ -107,6 +107,7 @@ class FileManager:
     def load_comment_count():
         try:
             with open("comment_count.json", "r") as file:
-                return json.load(file)
+                comments_count = json.load(file)
+                return sum(comments_count.values())
         except FileNotFoundError:
-            return {}
+            return 0 

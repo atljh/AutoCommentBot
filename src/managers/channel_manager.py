@@ -233,9 +233,8 @@ class ChannelManager:
             )
             console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel_link}", style="green")
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
-            self.comments_count += 1
-            self.file_manager.save_comment_count(self.comments_count)
-            console.log(f"Отправлено {self.comments_count} сообщений.", style="blue")
+            self.file_manager.save_comment_count(self.account_comment_count)
+            console.log(f"Отправлено {FileManager.load_comment_count()} сообщений.", style="blue")
             if self.account_comment_count[account_phone] >= self.comment_limit:
                 await self.switch_to_next_account()
                 await self.sleep_account(account_phone)
