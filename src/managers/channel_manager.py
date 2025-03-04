@@ -28,6 +28,8 @@ from .comment_manager import CommentManager
 from .blacklist import BlackList
 
 
+logging.getLogger("telethon").setLevel(logging.CRITICAL)
+
 
 class ChannelManager:
     MAX_SEND_ATTEMPTS = 3
