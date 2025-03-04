@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from src.console import console
 from typing import List, Dict
 
@@ -96,3 +97,16 @@ class FileManager:
         except IOError as e:
             console.log(f"Ошибка при добавлении в черный список: {e}", style="red")
             return False
+
+    @staticmethod
+    def save_comment_count(self):
+        with open("comment_count.json", "w") as file:
+            json.dump(self.account_comment_count, file)
+
+    @staticmethod
+    def load_comment_count(self):
+        try:
+            with open("comment_count.json", "r") as file:
+                self.account_comment_count = json.load(file)
+        except FileNotFoundError:
+            self.account_comment_count = {}
