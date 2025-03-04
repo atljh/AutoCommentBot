@@ -42,6 +42,8 @@ class ChannelManager:
         self.join_channel_delay = self.config.join_channel_delay
         self.send_comment_delay = self.config.send_message_delay
         self.channels = FileManager.read_channels()
+        self.comments_count = FileManager.load_comment_count()
+        self.file_manager = FileManager()
         self.openai_client = OpenAI(api_key=config.openai_api_key)
         self.comment_manager = CommentManager(config, self.openai_client)
         self.blacklist = BlackList()
@@ -231,7 +233,9 @@ class ChannelManager:
             )
             console.log(f"Комментарий отправлен от аккаунта {account_phone} в канал {channel_link}", style="green")
             self.account_comment_count[account_phone] = self.account_comment_count.get(account_phone, 0) + 1
-            console.log(f"Аккаунт {account_phone} отправил {self.account_comment_count[account_phone]} сообщений.", style="blue")
+            self.comments_count += 1
+            self.file_manager.save_comment_count(self.comments_count)
+            console.log(f"Отправлено {self.comments_count} сообщений.", style="blue")
             if self.account_comment_count[account_phone] >= self.comment_limit:
                 await self.switch_to_next_account()
                 await self.sleep_account(account_phone)
