@@ -45,8 +45,7 @@ class FileManager:
                     if len(line.strip()) > 5
                 ]
         except FileNotFoundError:
-            console.log("Файл groups.txt не найден", style="bold red")
-            sys.exit(1)
+            console.log("Файл proxy.txt не найден", style="bold red")
             return None
 
     @staticmethod
