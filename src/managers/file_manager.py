@@ -118,4 +118,4 @@ class FileManager:
                 comments_count = json.load(file)
                 return sum(comments_count.values())
         except FileNotFoundError:
-            return 0 
+            return 0

@@ -190,6 +190,7 @@ class ChannelManager:
             return
         for channel in channels:
             try:
+
                 client.add_event_handler(
                     partial(self.event_handler, client, prompt_tone=self.prompt_tone, account_phone=account_phone, channel=channel),
                     events.NewMessage(chats=channel)
@@ -332,14 +333,13 @@ class ChannelManager:
             return
 
         post_text = event.message.message
-
         message_id = event.message.id
         channel = event.chat
 
         if event.message.grouped_id and not len(post_text):
             return
 
-        if not len(post_text):
+        if not len(post_text) or len(post_text) < 3:
             console.log("У поста нет текста, пропускаем", style="yellow")
             return
 
