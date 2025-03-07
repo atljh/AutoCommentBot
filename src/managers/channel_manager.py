@@ -1,3 +1,4 @@
+import os
 import random
 import asyncio
 import logging
@@ -280,7 +281,7 @@ class ChannelManager:
                 if next_client:
                     await self.sleep_before_send_message()
                     await self.send_comment(
-                        next_client, account_phone, channel,
+                        next_client, self.active_account, channel,
                         comment, message_id, channel_link, attempts + 1
                     )
                 else:
