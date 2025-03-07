@@ -22,10 +22,11 @@ class Commenter(BaseThon):
         self.json_file = json_file
         self.account_phone = os.path.basename(self.item).split('.')[0]
         self.channel_manager = channel_manager
+
+    async def __main(self):
         self.channel_manager.add_accounts_to_queue([self.account_phone])
         self.channel_manager.add_account({self.account_phone: self.client})
 
-    async def __main(self):
         channels = await self.channel_manager.join_channels(
             self.client, self.account_phone
         )
