@@ -138,7 +138,7 @@ class ChannelManager:
                     f"Канал {channel} в черном списке аккаунта {account_phone}",
                     style="yellow"
                 )
-                channels.append(channel)
+                # channels.append(channel)
                 continue
             try:
                 entity = await client.get_entity(channel)
@@ -147,6 +147,11 @@ class ChannelManager:
                     continue
             except InviteHashExpiredError:
                 console.log(f"Такого канала не существует или ссылка истекла: {channel}", style="red")
+                continue
+            except FloodWaitError as e:
+                console.log(
+                    f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow"
+                    )
                 continue
             except Exception:
                 try:
