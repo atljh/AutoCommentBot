@@ -118,9 +118,10 @@ class ChannelManager:
                 account_phone, channel
             ):
                 console.log(
-                    f"Канал {channel} в черном списке аккаунта {account_phone}. Пропускаем",
+                    f"Канал {channel} в черном списке аккаунта {account_phone}",
                     style="yellow"
                 )
+                channels.append(channel)
                 continue
             try:
                 entity = await client.get_entity(channel)
