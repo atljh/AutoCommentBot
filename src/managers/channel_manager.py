@@ -152,7 +152,7 @@ class ChannelManager:
                 console.log(
                     f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow"
                     )
-                continue
+                return "MUTE"
             except Exception:
                 try:
                     await self.sleep_before_enter_channel()
@@ -174,7 +174,7 @@ class ChannelManager:
                                 от аккаунта {account_phone}.\
                                 Ожидание {e.seconds} секунд.", style="yellow"
                                 )
-                        continue
+                        return "MUTE"
                     elif "is already" in str(e):
                         continue
                     else:

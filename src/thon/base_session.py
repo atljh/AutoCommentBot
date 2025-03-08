@@ -13,6 +13,8 @@ class BaseSession:
         self.errors_dir.mkdir(exist_ok=True)
         self.banned_dir = self.base_dir / "ban"
         self.banned_dir.mkdir(exist_ok=True)
+        self.mute_dir = self.base_dir / "mute"
+        self.mute_dir.mkdir(exist_ok=True)
 
     def find_sessions(self) -> Generator:
         for item in self.base_dir.glob("*.session"):

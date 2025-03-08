@@ -19,25 +19,6 @@ class JsonConverter(BaseSession):
     def __init__(self):
         super().__init__()
         self.__api_id, self.__api_hash = 2040, "b18441a1ff607e10a989891a5462e627"
-        # proxy = ''
-        # if proxy == 'Без прокси':
-        #     self.__proxy = None
-        #     return
-        # try:
-        #     proxy_parts = proxy.strip().split(':')[1:]
-        #     if len(proxy_parts) == 4:
-        #         ip, port, username, password = proxy_parts
-        #         self.__proxy = ProxyParser(proxy).asdict_thon
-        #         if not self.check_proxy(ip, port, username, password):
-        #             console.log("Прокси не работает, продолжаем без прокси", style="red")
-        #             self.__proxy = None
-        #             return
-        #     else:
-        #         raise ValueError("Неправильный формат прокси, продолжаем без него")
-        # except Exception as e:
-        #     console.log(e, style="red")
-        #     self.__proxy = None
-        #     return
 
     def check_proxy(self, ip, port, username, password):
         proxies = {

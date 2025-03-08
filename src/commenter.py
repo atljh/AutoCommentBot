@@ -30,6 +30,8 @@ class Commenter(BaseThon):
         channels = await self.channel_manager.join_channels(
             self.client, self.account_phone
         )
+        if "MUTE" in channels:
+            return "MUTE"
         console.log(
             f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.",
             style="green"
@@ -45,7 +47,7 @@ class Commenter(BaseThon):
         r = await self.check()
         if "OK" not in r:
             return r
-        await self.__main()
+        r = await self.__main()
         return r
 
     async def main(self) -> str:
