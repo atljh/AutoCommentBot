@@ -63,17 +63,35 @@ class ChannelManager:
     def add_account(self, account: dict):
         self.accounts.update(account)
 
-    async def switch_to_next_account(self):
+    async def switch_to_next_account(self, channel_link: str = None):
+        """
+        Переключает активный аккаунт на следующий в очереди.
+        Если передан channel_link, пропускает аккаунты, которые находятся в черном списке для этого канала.
+        """
         if self.active_account:
             self.account_queue.append(self.active_account)
-        if self.account_queue:
-            self.active_account = self.account_queue.popleft()
+
+        new_account = None
+        while self.account_queue:
+            candidate = self.account_queue.popleft()
+            if channel_link and self.blacklist.is_group_blacklisted(candidate, channel_link):
+                console.log(
+                    f"Аккаунт {candidate} в черном списке для канала {channel_link}, пропускаем",
+                    style="yellow"
+                )
+                self.account_queue.append(candidate)
+                continue
+            new_account = candidate
+            break
+
+        if new_account:
+            self.active_account = new_account
             console.log(
                 f"Смена активного аккаунта на {self.active_account}",
                 style="green"
             )
         else:
-            console.log("Все аккаунты завершили работу", style="yellow")
+            console.log("Нет доступных аккаунтов для обработки", style="yellow")
             self.stop_event.set()
 
     async def sleep_account(self, account_phone):
@@ -330,20 +348,17 @@ class ChannelManager:
         channel_link: str
     ) -> None:
         if self.blacklist.is_group_blacklisted(self.active_account, channel_link):
-            print(self.accounts.keys())
             console.log(
                 f"Канал {channel_link} в черном списке активного аккаунта {self.active_account}",
                 style="yellow"
             )
 
-            new_account = self.get_next_available_account(channel_link)
-            if not new_account:
+            await self.switch_to_next_account(channel_link)
+            if not self.active_account:
                 console.log("Нет доступных аккаунтов для обработки этого канала", style="red")
                 return
 
-            await self.switch_to_next_account()
-            self.active_account = new_account
-            account_phone = new_account
+            account_phone = self.active_account
 
         if account_phone != self.active_account:
             return
@@ -362,7 +377,7 @@ class ChannelManager:
         console.log(f"Новый пост в канале {channel_link} для аккаунта {account_phone}", style="green")
 
         if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
-            await self.switch_to_next_account()
+            await self.switch_to_next_account(channel_link)
             await self.sleep_account(account_phone)
             return
 
@@ -373,9 +388,3 @@ class ChannelManager:
         await self.sleep_before_send_message()
 
         await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
-
-    def get_next_available_account(self, channel_link: str) -> str:
-        for account_phone in self.accounts.keys():
-            if not self.blacklist.is_group_blacklisted(account_phone, channel_link):
-                return account_phone
-        return None
