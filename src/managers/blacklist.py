@@ -10,26 +10,26 @@ class BlackList:
     def get_blacklist() -> Dict[str, List[str]]:
         """
         return
-            {account_phone: [groups]}
+            {account_phone: [channels]}
         """
         return FileManager.read_blacklist()
 
     @staticmethod
     def add_to_blacklist(
         account_phone: str,
-        group_link: str
+        channel_link: str
     ) -> bool:
         return FileManager.add_to_blacklist(
             account_phone,
-            group_link
+            channel_link
         )
 
     @staticmethod
     def is_group_blacklisted(
         account_phone: str,
-        group_link: str
+        channel_link: str
     ) -> bool:
         blacklist = FileManager.read_blacklist()
-        return group_link in blacklist.get(
+        return channel_link in blacklist.get(
             account_phone, []
         )

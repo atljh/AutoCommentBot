@@ -1,4 +1,3 @@
-import os
 import random
 import asyncio
 import logging
@@ -10,8 +9,8 @@ from openai import OpenAI
 from telethon import events
 from telethon import TelegramClient
 from telethon.tl.types import Channel
-from telethon.errors import UserNotParticipantError, FloodWaitError
 from telethon.errors.rpcerrorlist import (
+    FloodWaitError,
     UserBannedInChannelError,
     MsgIdInvalidError,
     InviteHashExpiredError,
@@ -330,6 +329,22 @@ class ChannelManager:
         account_phone: str,
         channel_link: str
     ) -> None:
+        if self.blacklist.is_group_blacklisted(self.active_account, channel_link):
+            print(self.accounts.keys())
+            console.log(
+                f"Канал {channel_link} в черном списке активного аккаунта {self.active_account}",
+                style="yellow"
+            )
+
+            new_account = self.get_next_available_account(channel_link)
+            if not new_account:
+                console.log("Нет доступных аккаунтов для обработки этого канала", style="red")
+                return
+
+            await self.switch_to_next_account()
+            self.active_account = new_account
+            account_phone = new_account
+
         if account_phone != self.active_account:
             return
 
@@ -351,13 +366,16 @@ class ChannelManager:
             await self.sleep_account(account_phone)
             return
 
-        comment = await self.comment_manager.generate_comment(
-            post_text, prompt_tone
-        )
+        comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
         if not comment:
             return
 
         await self.sleep_before_send_message()
-        await self.send_comment(
-            client, account_phone, channel, comment, message_id, channel_link
-        )
+
+        await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
+
+    def get_next_available_account(self, channel_link: str) -> str:
+        for account_phone in self.accounts.keys():
+            if not self.blacklist.is_group_blacklisted(account_phone, channel_link):
+                return account_phone
+        return None
