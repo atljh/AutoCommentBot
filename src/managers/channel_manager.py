@@ -267,7 +267,7 @@ class ChannelManager:
                 console.log("Для комментирование необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity, channel_link)
                 if join_result:
-                    await self.send_comment(client, account_phone, channel, comment, message_id)
+                    await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
                     return
                 else:
                     return

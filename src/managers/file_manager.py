@@ -91,7 +91,7 @@ class FileManager:
         try:
             with open(file, 'a', encoding='utf-8') as f:
                 f.write(f"{account_phone}:{group}\n")
-            console.log(f"Группа {group} добавлена в черный список для аккаунта {account_phone}.", style="yellow")
+            console.log(f"Канал {group} добавлена в черный список для аккаунта {account_phone}.", style="yellow")
             return True
         except IOError as e:
             console.log(f"Ошибка при добавлении в черный список: {e}", style="red")
