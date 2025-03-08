@@ -252,8 +252,7 @@ class ChannelManager:
             await client(LeaveChannelRequest(channel))
             await self.switch_to_next_account()
         except MsgIdInvalidError:
-            console.log("Канал не связан с чатом", style="red")
-            await self.switch_to_next_account()
+            console.log("Канал не связан с чатом, пропускаем", style="red")
         except Exception as e:
             if "private and you lack permission" in str(e):
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
