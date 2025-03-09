@@ -4,7 +4,7 @@ from config import ConfigManager
 from src.starter import Starter
 from src.thon.json_converter import JsonConverter
 from src.managers.file_manager import FileManager
-from scripts.authorization import register_user  # noqa
+# from scripts.authorization import register_user  # noqa
 
 # register_user()
 

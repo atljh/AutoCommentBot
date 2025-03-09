@@ -42,6 +42,7 @@ class Commenter(BaseThon):
             )
         except Exception as e:
             console.log(f'Ошибка {e}', style='yellow')
+        return "OK"
 
     async def _main(self) -> str:
         r = await self.check()

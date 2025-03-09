@@ -14,7 +14,8 @@ from telethon.errors.rpcerrorlist import (
     UserBannedInChannelError,
     MsgIdInvalidError,
     InviteHashExpiredError,
-    UserNotParticipantError
+    UserNotParticipantError,
+    ChannelPrivateError
 )
 from telethon.tl.functions.channels import (
     JoinChannelRequest, GetFullChannelRequest, LeaveChannelRequest
@@ -107,6 +108,8 @@ class ChannelManager:
             await client.get_permissions(channel, 'me')
             return True
         except UserNotParticipantError:
+            return False
+        except ChannelPrivateError:
             return False
         except Exception as e:
             if "private and you lack permission" in str(e):
@@ -273,6 +276,7 @@ class ChannelManager:
             console.log(f"Аккаунт {account_phone} заблокирован в канале {channel_link}", style="red")
             self.blacklist.add_to_blacklist(account_phone, channel_link)
             await client(LeaveChannelRequest(channel))
+            console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
             await self.switch_to_next_account()
         except MsgIdInvalidError:
             console.log("Канал не связан с чатом, пропускаем", style="red")
@@ -281,10 +285,12 @@ class ChannelManager:
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
                 self.blacklist.add_to_blacklist(account_phone, channel_link)
                 await client(LeaveChannelRequest(channel))
+                console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
             elif "You can't write" in str(e):
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
                 self.blacklist.add_to_blacklist(account_phone, channel_link)
                 await client(LeaveChannelRequest(channel))
+                console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
             elif "You join the discussion group before commenting" in str(e):
                 console.log("Для комментирование необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity, channel_link)
@@ -357,6 +363,7 @@ class ChannelManager:
                 f"Канал {channel_link} в черном списке активного аккаунта {self.active_account}",
                 style="yellow"
             )
+            print(self.accounts.keys())
 
             await self.switch_to_next_account(channel_link)
             if not self.active_account:
