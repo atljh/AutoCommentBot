@@ -41,14 +41,17 @@ class Starter(BaseSession):
                 console.log(f"Аккаунт {item.name} разлогинен или забанен", style="red")
                 move_item(item, self.banned_dir, True, True)
                 move_item(json_file, self.banned_dir, True, True)
+                return
             if "ERROR_STORY" in r:
                 console.log(f"Ошибка при работе аккаунта {item.name}", style="red")
                 move_item(item, self.errors_dir, True, True)
                 move_item(json_file, self.errors_dir, True, True)
+                return
             if "MUTE" in r:
                 console.log(f"Перемещаем {item.name} в папку mute", style="yellow")
                 move_item(item, self.mute_dir, True, True)
                 move_item(json_file, self.mute_dir, True, True)
+                return
             if "OK" in r:
                 console.log(f"Аккаунт {item.name} закончил работу", style="green")
         except Exception as e:

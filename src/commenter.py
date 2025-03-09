@@ -48,6 +48,7 @@ class Commenter(BaseThon):
         if "OK" not in r:
             return r
         r = await self.__main()
+        await self.disconnect()
         return r
 
     async def main(self) -> str:
