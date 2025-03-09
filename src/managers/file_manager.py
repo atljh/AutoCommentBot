@@ -46,7 +46,7 @@ class FileManager:
                 ]
         except FileNotFoundError:
             console.log("Файл proxy.txt не найден", style="bold red")
-            return None
+            return []
 
     @staticmethod
     def read_blacklist(file: str = 'blacklist.txt') -> Dict[str, List[str]]:

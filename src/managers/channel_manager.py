@@ -282,7 +282,7 @@ class ChannelManager:
             console.log("Канал не связан с чатом, пропускаем", style="red")
         except Exception as e:
             if "private and you lack permission" in str(e):
-                console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+                console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем. 1", style="yellow")
                 self.blacklist.add_to_blacklist(account_phone, channel_link)
                 await client(LeaveChannelRequest(channel))
                 console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
@@ -301,10 +301,10 @@ class ChannelManager:
                     return
             else:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
-
+            print("tr")
             if attempts < self.MAX_SEND_ATTEMPTS:
                 console.log(f"Попытка {attempts + 1}/{self.MAX_SEND_ATTEMPTS} отправить сообщение c другого аккаунта...")
-                await self.switch_to_next_account()
+                await self.switch_to_next_account(channel_link=channel_link)
                 next_client = self.accounts.get(self.active_account)
                 if next_client:
                     await self.sleep_before_send_message()
