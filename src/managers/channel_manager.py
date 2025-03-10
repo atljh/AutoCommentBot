@@ -73,16 +73,23 @@ class ChannelManager:
         if self.active_account:
             self.account_queue.append(self.active_account)
 
+        start_account = self.account_queue[0] if self.account_queue else None
         new_account = None
+
         while self.account_queue:
             candidate = self.account_queue.popleft()
+
             if channel_link and self.blacklist.is_group_blacklisted(candidate, channel_link):
                 console.log(
                     f"Аккаунт {candidate} в черном списке для канала {channel_link}, пропускаем",
                     style="yellow"
                 )
                 self.account_queue.append(candidate)
+                if candidate == start_account:
+                    console.log("Все аккаунты в черном списке, переключение невозможно", style="red")
+                    return None
                 continue
+
             new_account = candidate
             break
 
@@ -369,7 +376,6 @@ class ChannelManager:
                 f"Канал {channel_link} в черном списке активного аккаунта {self.active_account}",
                 style="yellow"
             )
-            print(self.accounts.keys())
 
             await self.switch_to_next_account(channel_link)
             if not self.active_account:
