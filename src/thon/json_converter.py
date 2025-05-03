@@ -34,7 +34,7 @@ class JsonConverter(BaseSession):
                 print("Прокси не отвечает, код состояния:", response.status_code)
                 return False
         except requests.exceptions.RequestException as e:
-            console.log(f"Ошибка при проверке прокси {e}")
+            console.log(f"Прокси не отвечает, продолжаем без них", style='yellow')
             return False
 
     def handle_proxy(self, proxy: str) -> Optional[Tuple[str, str, Optional[str], Optional[str]]]:
@@ -73,7 +73,17 @@ class JsonConverter(BaseSession):
                 json_data["proxy"] = None
             else:
                 proxy_parts = ProxyParser(proxy_parsed).asdict_thon
-                json_data["proxy"] = proxy_parts
+                ip = proxy_parts.get('addr')
+                port = proxy_parts.get('port')
+                username = proxy_parts.get('username')
+                password = proxy_parts.get('password')
+
+                check_proxy = self.check_proxy(ip, port, username, password)
+                if check_proxy:
+                    json_data["proxy"] = proxy_parts
+                else:
+                    json_data["proxy"] = None
+
         json_data["string_session"] = string_session
         json_write_sync(json_file, json_data)
 
