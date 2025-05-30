@@ -15,6 +15,8 @@ class BaseSession:
         self.banned_dir.mkdir(exist_ok=True)
         self.mute_dir = self.base_dir / "mute"
         self.mute_dir.mkdir(exist_ok=True)
+        self.spamblock_dir = self.base_dir / "spamblock"
+        self.spamblock_dir.mkdir(exist_ok=True)
 
     def find_sessions(self) -> Generator:
         for item in self.base_dir.glob("*.session"):

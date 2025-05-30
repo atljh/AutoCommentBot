@@ -7,6 +7,8 @@ from src.thon import BaseThon
 from src.managers import ChannelManager
 
 
+from pathlib import Path
+
 class Commenter(BaseThon):
     def __init__(
         self,
@@ -15,6 +17,7 @@ class Commenter(BaseThon):
         json_data: dict,
         config: Config,
         channel_manager: ChannelManager
+        
     ):
         super().__init__(item=item, json_data=json_data)
         self.item = item
@@ -22,8 +25,13 @@ class Commenter(BaseThon):
         self.json_file = json_file
         self.account_phone = os.path.basename(self.item).split('.')[0]
         self.channel_manager = channel_manager
+        
+        self.base_dir = Path("accounts")
+        self.spamblock_dir = self.base_dir / "spamblock"
+        self.spamblock_dir.mkdir(exist_ok=True)
 
     async def __main(self):
+
         self.channel_manager.add_accounts_to_queue([self.account_phone])
         self.channel_manager.add_account({self.account_phone: self.client})
         channels = await self.channel_manager.join_channels(
@@ -37,7 +45,7 @@ class Commenter(BaseThon):
         )
         try:
             await self.channel_manager.monitor_channels(
-                self.client, self.account_phone, channels
+                self.client, self.account_phone, channels, self.item, self.json_file, self.spamblock_dir
             )
         except Exception as e:
             console.log(f'Ошибка {e}', style='yellow')

@@ -28,6 +28,7 @@ from src.console import console
 from .file_manager import FileManager
 from .comment_manager import CommentManager
 from .blacklist import BlackList
+from tooler import move_item
 
 
 logging.getLogger("telethon").setLevel(logging.CRITICAL)
@@ -211,15 +212,18 @@ class ChannelManager:
                     continue
         return channels
 
-    async def event_handler(self, client, event, prompt_tone, account_phone, channel):
-        await self.new_post_handler(client, event, prompt_tone, account_phone, channel)
+    async def event_handler(self, client, event, prompt_tone, account_phone, channel, item, json_file, spamblock_dir):
+        await self.new_post_handler(client, event, prompt_tone, account_phone, channel, item, json_file, spamblock_dir)
 
     async def monitor_channels(
-            self,
-            client: TelegramClient,
-            account_phone: str,
-            channels: List[str]
-            ) -> None:
+        self,
+        client: TelegramClient,
+        account_phone: str,
+        channels: List[str],
+        item,
+        json_file,
+        spamblock_dir
+    ) -> None:
         if not channels:
             console.log("Каналы не найдены", style="yellow")
             return
@@ -227,7 +231,7 @@ class ChannelManager:
             try:
 
                 client.add_event_handler(
-                    partial(self.event_handler, client, prompt_tone=self.prompt_tone, account_phone=account_phone, channel=channel),
+                    partial(self.event_handler, client, prompt_tone=self.prompt_tone, account_phone=account_phone, channel=channel, item=item, json_file=json_file, spamblock_dir=spamblock_dir),
                     events.NewMessage(chats=channel)
                 )
             except Exception as e:
@@ -250,6 +254,9 @@ class ChannelManager:
         comment: str,
         message_id: int,
         channel_link: str,
+        item,
+        json_file,
+        spamblock_dir,
         attempts=0
     ) -> None:
         try:
@@ -306,13 +313,21 @@ class ChannelManager:
                     pass
                 console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
             elif "You join the discussion group before commenting" in str(e):
-                console.log("Для комментирование необходимо вступить в группу.")
+                console.log("Для комментирования необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity, channel_link)
                 if join_result:
                     await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
                     return
                 else:
                     return
+            elif "FROZEN_METHOD_INVALID" in str(e):
+                console.log("Аккаунт заморожен, перемещаем в папку spamblock")
+                move_item(item, spamblock_dir, True, True)
+                move_item(json_file, spamblock_dir, True, True)
+                await self.switch_to_next_account()
+            elif "ALLOW_PAYMENT_REQUIRED" in str(e):
+                console.log(f"Не удалось отправить сообщение в {channel_link}: требуется подписка или оплата.")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
             else:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
             if attempts < self.MAX_SEND_ATTEMPTS:
@@ -369,7 +384,10 @@ class ChannelManager:
         event: events.NewMessage.Event,
         prompt_tone: str,
         account_phone: str,
-        channel_link: str
+        channel_link: str,
+        item,
+        json_file,
+        spamblock_dir
     ) -> None:
         if self.blacklist.is_group_blacklisted(self.active_account, channel_link):
             console.log(
@@ -411,4 +429,4 @@ class ChannelManager:
 
         await self.sleep_before_send_message()
 
-        await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
+        await self.send_comment(client, account_phone, channel, comment, message_id, channel_link, item, json_file, spamblock_dir)
