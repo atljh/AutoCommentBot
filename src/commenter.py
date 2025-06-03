@@ -35,10 +35,12 @@ class Commenter(BaseThon):
         self.channel_manager.add_accounts_to_queue([self.account_phone])
         self.channel_manager.add_account({self.account_phone: self.client})
         channels = await self.channel_manager.join_channels(
-            self.client, self.account_phone
+            self.client, self.account_phone, self.item, self.json_file, self.spamblock_dir
         )
         if "MUTE" in channels:
             return "MUTE"
+        if "SPAMBLOCK" in channels:
+            return "SPAMBLOCK"
         console.log(
             f"Аккаунт {self.account_phone} успешно подключен и добавлен в очередь.",
             style="green"

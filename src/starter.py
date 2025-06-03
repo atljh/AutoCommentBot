@@ -52,6 +52,11 @@ class Starter(BaseSession):
                 move_item(item, self.mute_dir, True, True)
                 move_item(json_file, self.mute_dir, True, True)
                 return
+            if "SPAMBLOCK" in r:
+                console.log(f"Перемещаем {item.name} в папку spamblock", style="yellow")
+                move_item(item, self.spamblock_dir, True, True)
+                move_item(json_file, self.spamblock_dir, True, True)
+                return
             if "OK" in r:
                 console.log(f"Аккаунт {item.name} закончил работу", style="green")
         except Exception as e:

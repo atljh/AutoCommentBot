@@ -112,18 +112,22 @@ class ChannelManager:
         console.log(f"Аккаунт {account_phone} проснулся и готов продолжать.",
                     style="green")
 
-    async def is_participant(self, client, channel, account_phone, channel_link):
+    async def is_participant(self, client, channel, account_phone, channel_link, item, json_file, spamblock_dir):
         try:
             await client.get_permissions(channel, 'me')
             return True
         except UserNotParticipantError:
             return False
+
         except ChannelPrivateError:
             return False
+
         except Exception as e:
             if "private and you lack permission" in str(e):
                 self.blacklist.add_to_blacklist(account_phone, channel_link)
                 console.log(f"Канал {channel_link} недоступен для аккаунта {account_phone}. Пропускаем.", style="yellow")
+            elif 'FROZEN_METHOD_INVALID' in str(e):
+                return "SPAMBLOCK"
             else:
                 console.log(f"Ошибка при обработке канала {channel}: {e}")
             return False
@@ -140,7 +144,7 @@ class ChannelManager:
         console.log(f"Задержка перед подпиской на канал {delay} сек")
         await asyncio.sleep(delay)
 
-    async def join_channels(self, client, account_phone) -> List[str]:
+    async def join_channels(self, client, account_phone, item, json_file, spamblock_dir) -> List[str]:
         channels = []
         for channel in self.channels:
             if self.blacklist.is_group_blacklisted(
@@ -154,7 +158,10 @@ class ChannelManager:
                 continue
             try:
                 entity = await client.get_entity(channel)
-                if await self.is_participant(client, entity, account_phone, channel):
+                result = await self.is_participant(client, entity, account_phone, channel, item, json_file, spamblock_dir)
+                if type(result) == 'str' and "SPAMBLOCK" in result:
+                    return result
+                if result:
                     channels.append(channel)
                     continue
             except InviteHashExpiredError:
@@ -165,7 +172,7 @@ class ChannelManager:
                     f"Слишком много запросов от аккаунта {account_phone}. Ожидание {e.seconds} секунд.", style="yellow"
                     )
                 return "MUTE"
-            except Exception:
+            except Exception as e:
                 try:
                     await self.sleep_before_enter_channel()
                     await client(ImportChatInviteRequest(channel[6:]))
@@ -189,9 +196,17 @@ class ChannelManager:
                         return "MUTE"
                     elif "is already" in str(e):
                         continue
+                    elif "FROZEN_METHOD_INVALID" in str(e):
+                        console.log(f"[red]Акканут {account_phone} заморожен[/red]")
+                        # await self.switch_to_next_account()
+                        return "SPAMBLOCK"
                     else:
                         console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
                         continue
+            if "FROZEN_METHOD_INVALID" in str(e):
+                console.log(f"[red]Акканут {account_phone} заморожен[/red]")
+                await self.switch_to_next_account()
+                return "SPAMBLOCK"
             try:
                 await self.sleep_before_enter_channel()
                 await client(JoinChannelRequest(channel))
