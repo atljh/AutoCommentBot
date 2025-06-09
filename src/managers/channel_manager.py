@@ -203,10 +203,10 @@ class ChannelManager:
                     else:
                         console.log(f"Ошибка при присоединении к каналу {channel}: {e}")
                         continue
-            if "FROZEN_METHOD_INVALID" in str(e):
-                console.log(f"[red]Акканут {account_phone} заморожен[/red]")
-                await self.switch_to_next_account()
-                return "SPAMBLOCK"
+            # if "FROZEN_METHOD_INVALID" in str(e):
+            #     console.log(f"[red]Акканут {account_phone} заморожен[/red]")
+            #     await self.switch_to_next_account()
+            #     return "SPAMBLOCK"
             try:
                 await self.sleep_before_enter_channel()
                 await client(JoinChannelRequest(channel))
