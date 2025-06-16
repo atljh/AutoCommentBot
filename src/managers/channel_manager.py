@@ -284,7 +284,6 @@ class ChannelManager:
             if not channel_entity:
                 console.log("Канал не найден или недоступен.", style="red")
                 return
-            FileManager.remove_channel_from_groups(channel_link)
             await client.send_message(
                 entity=channel_entity,
                 message=comment,
