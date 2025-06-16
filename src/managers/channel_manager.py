@@ -284,6 +284,7 @@ class ChannelManager:
             if not channel_entity:
                 console.log("Канал не найден или недоступен.", style="red")
                 return
+            FileManager.remove_channel_from_groups(channel_link)
             await client.send_message(
                 entity=channel_entity,
                 message=comment,
@@ -341,8 +342,25 @@ class ChannelManager:
                 move_item(json_file, spamblock_dir, True, True)
                 await self.switch_to_next_account()
             elif "ALLOW_PAYMENT_REQUIRED" in str(e):
-                console.log(f"Не удалось отправить сообщение в {channel_link}: требуется подписка или оплата.")
+                console.log(f"Не удалось отправить сообщение в {channel_link}: требуется подписка или оплата.", style="yellow")
                 self.blacklist.add_to_blacklist(account_phone, channel_link)
+                FileManager.remove_channel_from_groups(channel_link)
+                try:
+                    await client(LeaveChannelRequest(channel))
+                    console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
+                except Exception:
+                    pass
+                await self.switch_to_next_account()
+            elif "RPCError 406" in str(e):
+                console.log(f"Не удалось отправить сообщение в {channel_link}: требуется подписка или оплата.", style="yellow")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
+                FileManager.remove_channel_from_groups(channel_link)
+                try:
+                    await client(LeaveChannelRequest(channel))
+                    console.log(f"Аккаунт {account_phone} вышел из канала {channel_link}")
+                except Exception:
+                    pass
+                await self.switch_to_next_account()
             else:
                 console.log(f"Ошибка при отправке комментария: {e}", style="red")
             if attempts < self.MAX_SEND_ATTEMPTS:

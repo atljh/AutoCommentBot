@@ -96,6 +96,20 @@ class FileManager:
         except IOError as e:
             console.log(f"Ошибка при добавлении в черный список: {e}", style="red")
             return False
+        
+    @staticmethod
+    def remove_channel_from_groups(channel: str, file='groups.txt') -> None:
+        try:
+            if not os.path.exists(file):
+                return
+            with open(file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            new_lines = [line for line in lines if channel not in line.strip()]
+            with open(file, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            console.log(f"Канал {channel} удалён из файла {file}.", style="bold yellow")
+        except Exception as e:
+            console.log(f"Ошибка при удалении канала из {file}: {e}", style="red")
 
     @staticmethod
     def save_comment_count(account_phone):
