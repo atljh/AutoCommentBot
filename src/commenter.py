@@ -31,8 +31,6 @@ class Commenter(BaseThon):
         self.spamblock_dir.mkdir(exist_ok=True)
 
     async def __main(self):
-
-
         channels = await self.channel_manager.join_channels(
             self.client, self.account_phone, self.item, self.json_file, self.spamblock_dir
         )

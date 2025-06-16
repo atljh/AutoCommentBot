@@ -331,7 +331,7 @@ class ChannelManager:
                 console.log("Для комментирования необходимо вступить в группу.")
                 join_result = await self.join_discussion_group(client, channel_entity, channel_link)
                 if join_result:
-                    await self.send_comment(client, account_phone, channel, comment, message_id, channel_link)
+                    await self.send_comment(client, account_phone, channel, comment, message_id, channel_link, item, json_file, spamblock_dir)
                     return
                 else:
                     return
@@ -353,7 +353,9 @@ class ChannelManager:
                     await self.sleep_before_send_message()
                     await self.send_comment(
                         next_client, self.active_account, channel,
-                        comment, message_id, channel_link, attempts + 1
+                        comment, message_id, channel_link,
+                        item, json_file, spamblock_dir,
+                        attempts + 1
                     )
                 else:
                     console.log("Нет доступных аккаунтов для отправки.", style="red")
