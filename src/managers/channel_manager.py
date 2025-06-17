@@ -16,7 +16,8 @@ from telethon.errors.rpcerrorlist import (
     InviteHashExpiredError,
     UserNotParticipantError,
     ChannelPrivateError,
-    ChannelInvalidError
+    ChannelInvalidError,
+    InviteHashInvalidError
 )
 from telethon.tl.functions.channels import (
     JoinChannelRequest, GetFullChannelRequest, LeaveChannelRequest
@@ -66,6 +67,26 @@ class ChannelManager:
     def add_account(self, account: dict):
         self.accounts.update(account)
 
+    async def validate_channels_access(self, account_phone):
+        client = self.accounts.get(account_phone)
+        if not client:
+            return []
+        
+        valid_channels = []
+        
+        for channel_link in self.channels:
+            try:
+                entity = await client.get_entity(channel_link)
+                await client.get_permissions(entity, 'me')
+                valid_channels.append(channel_link)
+            except ChannelPrivateError:
+                console.log(f"Аккаунт {account_phone} исключен из {channel_link}", style="red")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
+            except Exception as e:
+                console.log(f"Ошибка доступа к {channel_link}", style="yellow")
+        
+        return valid_channels
+
     async def switch_to_next_account(self, channel_link: str = None):
         """
         Переключает активный аккаунт на следующий в очереди.
@@ -85,7 +106,14 @@ class ChannelManager:
                     f"Аккаунт {candidate} в черном списке для канала {channel_link}, пропускаем",
                     style="yellow"
                 )
+
+                valid_channels = await self.validate_channels_access(candidate)
+                if not valid_channels:
+                    console.log(f"Аккаунт {candidate} не имеет доступа к каналам", style="red")
+                    continue
+
                 self.account_queue.append(candidate)
+                self.channels = valid_channels
                 if candidate == start_account:
                     console.log("Все аккаунты в черном списке, переключение невозможно", style="red")
                     return None
@@ -166,6 +194,7 @@ class ChannelManager:
                     continue
             except InviteHashExpiredError:
                 console.log(f"Такого канала не существует или ссылка истекла: {channel}", style="red")
+                self.blacklist.add_to_blacklist(account_phone, channel)
                 continue
             except FloodWaitError as e:
                 console.log(
@@ -275,14 +304,23 @@ class ChannelManager:
         attempts=0
     ) -> None:
         try:
+            
             if self.blacklist.is_group_blacklisted(
                 account_phone, channel_link
             ):
                 console.log(f"{channel_link} в черном списке аккаунта {account_phone}, пропускаем")
+                self.channels.remove(channel)
                 return
             channel_entity = await self.get_channel_entity(client, channel)
             if not channel_entity:
                 console.log("Канал не найден или недоступен.", style="red")
+                return
+            try:
+                await client.get_permissions(channel, 'me')
+            except ChannelPrivateError:
+                console.log(f"Аккаунт {account_phone} был удален из канала {channel_link}", style="red")
+                self.blacklist.add_to_blacklist(account_phone, channel_link)
+                await self.switch_to_next_account(channel_link)
                 return
             await client.send_message(
                 entity=channel_entity,
@@ -424,43 +462,87 @@ class ChannelManager:
         spamblock_dir
     ) -> None:
         if self.blacklist.is_group_blacklisted(self.active_account, channel_link):
-            console.log(
-                f"Канал {channel_link} в черном списке активного аккаунта {self.active_account}",
-                style="yellow"
-            )
-
+            console.log(f"Канал {channel_link} в ЧС аккаунта {self.active_account}", style="yellow")
             await self.switch_to_next_account(channel_link)
             if not self.active_account:
-                console.log("Нет доступных аккаунтов для обработки этого канала", style="red")
+                console.log("Нет доступных аккаунтов", style="red")
+                return
+            account_phone = self.active_account
+
+        active_client = self.accounts.get(self.active_account)
+        if not active_client:
+            console.log(f"Клиент для аккаунта {self.active_account} не найден", style="red")
+            await self.switch_to_next_account(channel_link)
+            return
+
+        try:
+            try:
+                channel_entity = await active_client.get_entity(channel_link)
+            except (ValueError, InviteHashExpiredError, InviteHashInvalidError) as e:
+                console.log(f"Приглашение в канал устарело или недействительно: {channel_link}", style="red")
+                self.blacklist.add_to_blacklist(self.active_account, channel_link)
+                await self.switch_to_next_account(channel_link)
+                return
+            except Exception as e:
+                console.log(f"Ошибка получения entity канала: {e}", style="red")
                 return
 
-            account_phone = self.active_account
+            try:
+                perms = await active_client.get_permissions(channel_entity, 'me')
+                if not perms:
+                    raise ChannelPrivateError()
+            except (ChannelPrivateError, UserNotParticipantError):
+                console.log(f"Аккаунт {self.active_account} не в канале {channel_link}", style="red")
+                self.blacklist.add_to_blacklist(self.active_account, channel_link)
+                await self.switch_to_next_account(channel_link)
+                return
+            try:
+                await active_client.get_messages(channel_entity, limit=1, ids=1)
+            except (ChannelPrivateError, UserNotParticipantError):
+                console.log(f"Подтверждено: {self.active_account} нет в {channel_link}", style="red")
+                self.blacklist.add_to_blacklist(self.active_account, channel_link)
+                await self.switch_to_next_account(channel_link)
+                return
+            except Exception as e:
+                console.log(f"Ошибка дополнительной проверки: {e}", style="yellow")
+
+        except FloodWaitError as e:
+            console.log(f"Флуд-контроль: ждем {e.seconds} сек", style="yellow")
+            await asyncio.sleep(e.seconds)
+            return
+        except Exception as e:
+            console.log(f"Критическая ошибка проверки канала: {e}", style="red")
+            return
 
         if account_phone != self.active_account:
             return
 
         post_text = event.message.message
-        message_id = event.message.id
-        channel = event.chat
-
-        if event.message.grouped_id and not len(post_text):
+        if not post_text or len(post_text) < 3:
+            console.log("Пост без текста", style="yellow")
             return
 
-        if not len(post_text) or len(post_text) < 3:
-            console.log("У поста нет текста, пропускаем", style="yellow")
-            return
+        console.log(f"Новый пост в {channel_link} для {self.active_account}", style="green")
 
-        console.log(f"Новый пост в канале {channel_link} для аккаунта {account_phone}", style="green")
-
-        if self.account_comment_count.get(account_phone, 0) >= self.comment_limit:
+        if self.account_comment_count.get(self.active_account, 0) >= self.comment_limit:
             await self.switch_to_next_account(channel_link)
-            await self.sleep_account(account_phone)
+            await self.sleep_account(self.active_account)
             return
 
-        comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
-        if not comment:
-            return
-
-        await self.sleep_before_send_message()
-
-        await self.send_comment(client, account_phone, channel, comment, message_id, channel_link, item, json_file, spamblock_dir)
+        try:
+            comment = await self.comment_manager.generate_comment(post_text, prompt_tone)
+            if comment:
+                await self.sleep_before_send_message()
+                await self.send_comment(
+                    active_client,
+                    self.active_account,
+                    event.chat,
+                    comment,
+                    event.message.id,
+                    channel_link,
+                    item,
+                    json_file,
+                    spamblock_dir
+                )
+        except Exception as e:
+            console.log(f"Ошибка отправки: {e}", style="red")
